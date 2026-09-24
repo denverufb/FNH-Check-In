@@ -360,8 +360,11 @@
   <script>
     const STORAGE_KEY = "fnh-field-check-v1";
     const CHECK_MS = 30 * 60 * 1000;
-    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: "", teacherKey: "", teacherResetAt: 0 };
+    const DEFAULT_WEBHOOK_URL = "https://script.google.com/a/macros/fomusic.org/s/AKfycbxkOeHYJAE8eHSrbY339feEpAMXo2641Z-s269oG_jQYowBRhbubyErgbbkPzXIKGCMDw/exec";
+    const STUDENT_RESET_VERSION = "2026-09-24-all-students-1";
+    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: DEFAULT_WEBHOOK_URL, teacherKey: "", teacherResetAt: 0, studentResetVersion: "" };
     let state = loadState();
+    prepareSharedConnectionAndStudentReset();
     ensureTeacherKey();
     let toastTimer;
     let teacherPollTimer = null;
@@ -381,6 +384,18 @@
     function loadState() {
       try { return { ...emptyState, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") }; }
       catch { return { ...emptyState }; }
+    }
+
+    function prepareSharedConnectionAndStudentReset() {
+      if (!state.webhookUrl) state.webhookUrl = DEFAULT_WEBHOOK_URL;
+      if (state.studentResetVersion !== STUDENT_RESET_VERSION) {
+        Object.assign(state, {
+          status: "idle", student: "", destination: "", startedAt: null, dueAt: null,
+          events: [], queue: [], reminderSent: false, tripId: null,
+          studentResetVersion: STUDENT_RESET_VERSION
+        });
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
     function ensureTeacherKey() {
