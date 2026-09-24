@@ -20,9 +20,6 @@
       <h2>Teacher access</h2><p class="helper">Enter the teacher password.</p>
       <input id="password" type="password" placeholder="Password" autocomplete="current-password">
       <button class="btn primary" id="loginButton">Open dashboard</button>
-      <p class="helper">The same password works on every authorized teacher device.</p>
-      <button class="btn" id="copyLoginBackend">Copy one-time Apps Script update</button>
-      <p class="helper">Use this once on the main teacher computer before the first password-only login.</p>
     </div>
   </div>
 
@@ -85,7 +82,6 @@
     function key(){return teacherPassword}
     async function openDashboard(){const password=$("#password").value.trim();if(!password)return toast("Enter the teacher password.");unlockTeacherAudio();teacherPassword=password;$("#loginButton").disabled=true;$("#loginScreen").style.display="none";initMap();try{await load();poll()}catch{teacherPassword="";$("#loginScreen").style.display="grid";$("#password").select();toast("Incorrect teacher password or the shared Sheet could not be reached.")}finally{$("#loginButton").disabled=false}}
     $("#loginButton").onclick=openDashboard;
-    $("#copyLoginBackend").onclick=()=>copyBackendCode($("#password").value.trim());
     $("#password").addEventListener("keydown",e=>{if(e.key==="Enter")$("#loginButton").click()});
     function initMap(){if(map)return;map=L.map("map",{minZoom:2,maxZoom:19}).setView(SCHOOL_CENTER,16);L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:'Imagery &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'}).addTo(map);L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,opacity:.85,attribution:'Labels &copy; Esri'}).addTo(map);markers=L.layerGroup().addTo(map);setTimeout(()=>map.invalidateSize(),100)}
     function visibleEvents(all){let cut=Number(state.teacherResetCount||0);if(all.length<cut)cut=0;state.teacherResetCount=cut;state.lastTeacherTotal=all.length;save();return all.slice(cut)}
