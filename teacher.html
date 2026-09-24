@@ -63,7 +63,7 @@
     const STORAGE_KEY="fnh-field-check-v1";
     const WEBHOOK="https://script.google.com/a/macros/fomusic.org/s/AKfycbxkOeHYJAE8eHSrbY339feEpAMXo2641Z-s269oG_jQYowBRhbubyErgbbkPzXIKGCMDw/exec";
     let state={};try{state=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")}catch{}
-    let events=[],students=[],messages=[],timer=null,map=null,markers=null,toastTimer=null;
+    let events=[],students=[],messages=[],timer=null,map=null,markers=null,toastTimer=null,teacherAudioContext=null,knownEventKeys=null;
     const PORTRAITS={
       "Ruth Allen ’28":0,"Maiyah Calleb ’27":1,"Michaela Coles ’28":2,"Tristin Coon ’27":3,
       "Allana Dow ’28":4,"Arwynne Dow ’28":5,"Alana Henry ’28":6,"Paige Ivy ’28":7,
@@ -73,14 +73,18 @@
     const $=(s,p=document)=>p.querySelector(s);
     function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}
     function toast(text){clearTimeout(toastTimer);$("#toast").textContent=text;$("#toast").classList.add("show");toastTimer=setTimeout(()=>$("#toast").classList.remove("show"),3000)}
+    function unlockTeacherAudio(){const AudioContextClass=window.AudioContext||window.webkitAudioContext;if(!AudioContextClass)return;if(!teacherAudioContext)teacherAudioContext=new AudioContextClass();if(teacherAudioContext.state==="suspended")teacherAudioContext.resume().catch(()=>{})}
+    function playCheckoutDing(){unlockTeacherAudio();if(!teacherAudioContext||teacherAudioContext.state!=="running")return;const now=teacherAudioContext.currentTime+.02,oscillator=teacherAudioContext.createOscillator(),gain=teacherAudioContext.createGain();oscillator.type="sine";oscillator.frequency.setValueAtTime(880,now);oscillator.frequency.exponentialRampToValueAtTime(1175,now+.12);gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(.22,now+.015);gain.gain.exponentialRampToValueAtTime(.0001,now+.38);oscillator.connect(gain).connect(teacherAudioContext.destination);oscillator.start(now);oscillator.stop(now+.4)}
+    function eventKey(event){return `${event.at}|${event.student}|${event.status}`}
+    function announceNewCheckouts(nextEvents){const nextKeys=new Set(nextEvents.map(eventKey));if(knownEventKeys){const newCheckouts=nextEvents.filter(event=>event.status==="Checked out"&&!knownEventKeys.has(eventKey(event)));if(newCheckouts.length){playCheckoutDing();const latest=newCheckouts[newCheckouts.length-1];toast(`${latest.student} checked out.`);if("Notification" in window&&Notification.permission==="granted")new Notification(`${latest.student} checked out`,{body:"A new field checkout was received.",icon:"./icon.svg",tag:`fnh-checkout-${eventKey(latest)}`})}}knownEventKeys=nextKeys}
     function key(){return state.teacherKey||""}
-    function openDashboard(){if(!key()){$("#keySetup").hidden=false;toast("Paste the private sync key once for this teacher device.");return}$("#loginScreen").style.display="none";initMap();poll()}
+    function openDashboard(){unlockTeacherAudio();if(!key()){$("#keySetup").hidden=false;toast("Paste the private sync key once for this teacher device.");return}$("#loginScreen").style.display="none";initMap();poll()}
     $("#loginButton").onclick=()=>{$("#password").value==="teacher"?openDashboard():toast("Incorrect teacher password.")};
     $("#password").addEventListener("keydown",e=>{if(e.key==="Enter")$("#loginButton").click()});
     $("#saveKey").onclick=()=>{const value=$("#teacherKeyInput").value.trim();if(!value)return toast("Paste the private teacher key.");state.teacherKey=value;save();openDashboard()};
     function initMap(){if(map)return;map=L.map("map").setView([38.95,-90.35],13);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);markers=L.layerGroup().addTo(map);setTimeout(()=>map.invalidateSize(),100)}
     function visibleEvents(all){let cut=Number(state.teacherResetCount||0);if(all.length<cut)cut=0;state.teacherResetCount=cut;state.lastTeacherTotal=all.length;save();return all.slice(cut)}
-    async function load(){const response=await fetch(`${WEBHOOK}?view=teacher&key=${encodeURIComponent(key())}&t=${Date.now()}`,{cache:"no-store"});const data=await response.json();if(data.error)throw new Error(data.error);events=visibleEvents(Array.isArray(data.events)?data.events:[]);students=Array.isArray(data.students)?data.students:[];messages=Array.isArray(data.messages)?data.messages:[];render();return data}
+    async function load(){const response=await fetch(`${WEBHOOK}?view=teacher&key=${encodeURIComponent(key())}&t=${Date.now()}`,{cache:"no-store"});const data=await response.json();if(data.error)throw new Error(data.error);const nextEvents=visibleEvents(Array.isArray(data.events)?data.events:[]);announceNewCheckouts(nextEvents);events=nextEvents;students=Array.isArray(data.students)?data.students:[];messages=Array.isArray(data.messages)?data.messages:[];render();return data}
     async function poll(){try{await load();$("#liveStatus").textContent=`Live · ${events.length} update${events.length===1?"":"s"} · continuously checking`}catch{$("#liveStatus").textContent="Connection interrupted — retrying automatically."}timer=setTimeout(poll,400)}
     function latestByStudent(){const latest=new Map();events.forEach(e=>latest.set(e.student,e));return latest}
     function render(){const latest=latestByStudent();$("#studentCount").textContent=latest.size;$("#outsideCount").textContent=[...latest.values()].filter(e=>e.status!=="Safely in").length;$("#eventCount").textContent=events.length;renderCards();renderMap(latest);renderRoster()}
@@ -109,6 +113,8 @@
     $("#refresh").onclick=()=>load().then(()=>toast("Dashboard refreshed."));
     $("#resetDashboard").onclick=()=>{if(!confirm("Hide all current activity and start a new dashboard day?"))return;state.teacherResetCount=Number(state.lastTeacherTotal||0);save();events=[];render();toast("Dashboard reset. New updates will appear.")};
     $("#copyBackend").onclick=async()=>{try{let code=await fetch("./google-apps-script/Code.gs").then(r=>r.text());code=code.replace("'REPLACE_WITH_THE_PRIVATE_TEACHER_SYNC_KEY'",JSON.stringify(key()));await navigator.clipboard.writeText(code);toast("Updated Apps Script copied with this teacher device’s private key.")}catch{toast("Could not copy the backend file.")}};
+    document.addEventListener("pointerdown",unlockTeacherAudio,{passive:true});
+    document.addEventListener("keydown",unlockTeacherAudio);
   </script>
 </body>
 </html>
