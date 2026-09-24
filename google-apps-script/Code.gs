@@ -4,10 +4,13 @@ const TEACHER_KEY = 'REPLACE_WITH_THE_PRIVATE_TEACHER_SYNC_KEY';
 const LOG_SHEET_NAME = 'Field Log';
 const STUDENTS_SHEET_NAME = 'Students';
 const MESSAGES_SHEET_NAME = 'Messages';
+const ROSTER_VERSION = 'fnh-roster-2026-09-24-v2';
 const DEFAULT_STUDENTS = [
+  'Ruth Allen ’28', 'Maiyah Calleb ’27', 'Michaela Coles ’28', 'Tristin Coon ’27',
   'Davis Johnson ’28', 'Taylor Lee ’27', 'Valentina Lizarazo ’28',
   'Avenly Lockhart ’28', 'Allie Medford ’28', 'Eli Morse ’27',
-  'Peyton Webster ’27', 'Khanye Williams ’27'
+  'Peyton Webster ’27', 'Khanye Williams ’27', 'Allana Dow ’28',
+  'Arwynne Dow ’28', 'Alana Henry ’28', 'Paige Ivy ’28'
 ];
 
 function getSheet_(name, headers) {
@@ -28,7 +31,12 @@ function getLogSheet_() {
 
 function getStudentsSheet_() {
   const sheet = getSheet_(STUDENTS_SHEET_NAME, ['Student']);
-  if (sheet.getLastRow() === 1) DEFAULT_STUDENTS.forEach(function(name) { sheet.appendRow([name]); });
+  const properties = PropertiesService.getScriptProperties();
+  if (properties.getProperty('ROSTER_VERSION') !== ROSTER_VERSION) {
+    const current = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().map(String) : [];
+    DEFAULT_STUDENTS.forEach(function(name) { if (current.indexOf(name) === -1) sheet.appendRow([name]); });
+    properties.setProperty('ROSTER_VERSION', ROSTER_VERSION);
+  }
   return sheet;
 }
 
