@@ -46,6 +46,11 @@
         <p class="helper">Messages appear while the student app is open or the next time it opens.</p>
       </section>
       <section class="card">
+        <h2>Safety timer</h2>
+        <div class="form-row"><input id="checkMinutes" type="number" inputmode="numeric" min="1" max="180" step="1" value="30" aria-label="Safety check timer in minutes"><button class="btn primary" id="saveTimer">Save timer</button></div>
+        <p class="helper" id="timerSettingStatus">Connecting to the shared timer…</p>
+      </section>
+      <section class="card">
         <h2>Student roster</h2>
         <div class="form-row"><input id="newStudent" placeholder="Student name and class year"><button class="btn primary" id="addStudent">Add student</button></div>
         <div class="roster" id="roster"></div>
@@ -63,7 +68,7 @@
     const STORAGE_KEY="fnh-field-check-v1";
     const WEBHOOK="https://script.google.com/a/macros/fomusic.org/s/AKfycbxkOeHYJAE8eHSrbY339feEpAMXo2641Z-s269oG_jQYowBRhbubyErgbbkPzXIKGCMDw/exec";
     let state={};try{state=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")}catch{}
-    let events=[],students=[],messages=[],timer=null,map=null,markers=null,toastTimer=null,teacherAudioContext=null,knownEventKeys=null;
+    let events=[],students=[],messages=[],checkMinutes=30,timerBackendReady=false,timer=null,map=null,markers=null,toastTimer=null,teacherAudioContext=null,knownEventKeys=null;
     const PORTRAITS={
       "Ruth Allen ’28":0,"Maiyah Calleb ’27":1,"Michaela Coles ’28":2,"Tristin Coon ’27":3,
       "Allana Dow ’28":4,"Arwynne Dow ’28":5,"Alana Henry ’28":6,"Paige Ivy ’28":7,
@@ -84,10 +89,10 @@
     $("#saveKey").onclick=()=>{const value=$("#teacherKeyInput").value.trim();if(!value)return toast("Paste the private teacher key.");state.teacherKey=value;save();openDashboard()};
     function initMap(){if(map)return;map=L.map("map").setView([38.95,-90.35],13);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);markers=L.layerGroup().addTo(map);setTimeout(()=>map.invalidateSize(),100)}
     function visibleEvents(all){let cut=Number(state.teacherResetCount||0);if(all.length<cut)cut=0;state.teacherResetCount=cut;state.lastTeacherTotal=all.length;save();return all.slice(cut)}
-    async function load(){const response=await fetch(`${WEBHOOK}?view=teacher&key=${encodeURIComponent(key())}&t=${Date.now()}`,{cache:"no-store"});const data=await response.json();if(data.error)throw new Error(data.error);const nextEvents=visibleEvents(Array.isArray(data.events)?data.events:[]);announceNewStudentUpdates(nextEvents);events=nextEvents;students=Array.isArray(data.students)?data.students:[];messages=Array.isArray(data.messages)?data.messages:[];render();return data}
+    async function load(){const response=await fetch(`${WEBHOOK}?view=teacher&key=${encodeURIComponent(key())}&t=${Date.now()}`,{cache:"no-store"});const data=await response.json();if(data.error)throw new Error(data.error);const nextEvents=visibleEvents(Array.isArray(data.events)?data.events:[]);announceNewStudentUpdates(nextEvents);events=nextEvents;students=Array.isArray(data.students)?data.students:[];messages=Array.isArray(data.messages)?data.messages:[];const sharedMinutes=Math.round(Number(data.checkMinutes));timerBackendReady=Number.isFinite(sharedMinutes)&&sharedMinutes>=1&&sharedMinutes<=180;if(timerBackendReady)checkMinutes=sharedMinutes;render();return data}
     async function poll(){try{await load();$("#liveStatus").textContent=`Live · ${events.length} update${events.length===1?"":"s"} · continuously checking`}catch{$("#liveStatus").textContent="Connection interrupted — retrying automatically."}timer=setTimeout(poll,400)}
     function latestByStudent(){const latest=new Map();events.forEach(e=>latest.set(e.student,e));return latest}
-    function render(){const latest=latestByStudent();$("#studentCount").textContent=latest.size;$("#outsideCount").textContent=[...latest.values()].filter(e=>e.status!=="Safely in").length;$("#eventCount").textContent=events.length;renderCards();renderMap(latest);renderRoster()}
+    function render(){const latest=latestByStudent();$("#studentCount").textContent=latest.size;$("#outsideCount").textContent=[...latest.values()].filter(e=>e.status!=="Safely in").length;$("#eventCount").textContent=events.length;if(document.activeElement!==$("#checkMinutes"))$("#checkMinutes").value=checkMinutes;$("#timerSettingStatus").textContent=timerBackendReady?`Students will be reminded after ${checkMinutes} minute${checkMinutes===1?"":"s"}.`:"Update the Apps Script once to enable the shared timer.";renderCards();renderMap(latest);renderRoster()}
     function avatarFor(name){const index=PORTRAITS[name];if(index===undefined)return null;const avatar=document.createElement("span"),col=index%4,row=Math.floor(index/4);avatar.className="student-avatar";avatar.setAttribute("role","img");avatar.setAttribute("aria-label",`${name} portrait`);avatar.style.backgroundPosition=`${col*100/3}% ${row*100/3}%`;return avatar}
     function renderCards(){
       const host=$("#studentCards"),openStudents=new Set([...host.querySelectorAll("details[open]")].map(card=>card.dataset.student));host.replaceChildren();
@@ -110,6 +115,7 @@
     async function mutate(payload,success){payload.teacherKey=key();await fetch(WEBHOOK,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)});toast(success);setTimeout(load,900)}
     $("#addStudent").onclick=()=>{const name=$("#newStudent").value.trim();if(!name)return toast("Enter a student name.");mutate({action:"addStudent",student:name},`${name} added.`);$("#newStudent").value=""};
     $("#sendMessage").onclick=()=>{const message=$("#messageText").value.trim();if(!message)return toast("Type a message first.");mutate({action:"message",recipient:$("#messageRecipient").value,message},"Message sent to students.");$("#messageText").value=""};
+    $("#saveTimer").onclick=()=>{if(!timerBackendReady)return toast("Update the Apps Script first, then set the timer.");const minutes=Math.round(Number($("#checkMinutes").value));if(!Number.isFinite(minutes)||minutes<1||minutes>180)return toast("Choose a timer from 1 to 180 minutes.");checkMinutes=minutes;render();mutate({action:"setTimer",checkMinutes:minutes},`Safety timer set to ${minutes} minute${minutes===1?"":"s"}.`)};
     $("#refresh").onclick=()=>load().then(()=>toast("Dashboard refreshed."));
     $("#resetDashboard").onclick=()=>{if(!confirm("Hide all current activity and start a new dashboard day?"))return;state.teacherResetCount=Number(state.lastTeacherTotal||0);save();events=[];render();toast("Dashboard reset. New updates will appear.")};
     $("#copyBackend").onclick=async()=>{try{let code=await fetch("./google-apps-script/Code.gs").then(r=>r.text());code=code.replace("'REPLACE_WITH_THE_PRIVATE_TEACHER_SYNC_KEY'",JSON.stringify(key()));await navigator.clipboard.writeText(code);toast("Updated Apps Script copied with this teacher device’s private key.")}catch{toast("Could not copy the backend file.")}};

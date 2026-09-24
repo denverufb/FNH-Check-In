@@ -208,7 +208,7 @@
       <article class="card main-card">
         <p class="eyebrow">Student check-in</p>
         <h2 id="headline">Heading outside?</h2>
-        <p class="lede" id="lede">Tell your teacher before you leave. The app will start your 30-minute safety timer.</p>
+        <p class="lede" id="lede">Tell your teacher before you leave. The app will start your safety timer.</p>
 
         <div class="identity" id="identityFields">
           <label>Your name
@@ -247,7 +247,7 @@
 
         <div class="actions" aria-label="Field status actions">
           <button class="action primary" data-step="out"><span class="num">STEP 01</span><strong>I’m going out</strong><small>Notifies teacher + starts timer</small></button>
-          <button class="action" data-step="safe" disabled><span class="num">STEP 02</span><strong>I’m safe</strong><small>30-minute check</small></button>
+          <button class="action" data-step="safe" disabled><span class="num">STEP 02</span><strong>I’m safe</strong><small>Safety check</small></button>
           <button class="action" data-step="returning" disabled><span class="num">STEP 03</span><strong>Heading back</strong><small>Let your teacher know</small></button>
           <button class="action" data-step="in" disabled><span class="num">STEP 04</span><strong>I made it in</strong><small>Closes your field trip</small></button>
         </div>
@@ -283,7 +283,7 @@
   <dialog id="studentReadyDialog">
     <div class="dialog-head"><h3>Get ready for field check</h3></div>
     <div class="dialog-body">
-      <p>Allow both services so each check-in includes your location and the 30-minute reminder can reach you.</p>
+      <p>Allow both services so each check-in includes your location and the safety reminder can reach you.</p>
       <div class="permission-list">
         <div class="permission-row">
           <div class="permission-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg></div>
@@ -291,7 +291,7 @@
         </div>
         <div class="permission-row">
           <div class="permission-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div><strong>Notifications</strong><span id="launchNotificationStatus">Needed for the 30-minute reminder</span></div>
+          <div><strong>Notifications</strong><span id="launchNotificationStatus">Needed for the safety reminder</span></div>
         </div>
       </div>
       <div class="dialog-actions"><button class="btn primary" id="enableStudentPermissions">Enable and continue</button><button class="btn" id="continueWithoutPermissions">Continue for now</button></div>
@@ -345,7 +345,7 @@
         <div class="setup-step"><strong>1 · Open this page in Safari</strong><span>Home Screen apps must be added from Safari on iPhone.</span></div>
         <div class="setup-step"><strong>2 · Tap the Share button</strong><span>It looks like a square with an arrow pointing up.</span></div>
         <div class="setup-step"><strong>3 · Tap “Add to Home Screen”</strong><span>Keep the name “Field Check,” then tap Add.</span></div>
-        <div class="setup-step"><strong>4 · Open it once and allow notifications</strong><span>The 30-minute alert works best when the app remains open. Full background alerts require a school push-notification service.</span></div>
+        <div class="setup-step"><strong>4 · Open it once and allow notifications</strong><span>The safety alert works best when the app remains open. Full background alerts require a school push-notification service.</span></div>
       </div>
     </div>
   </dialog>
@@ -381,10 +381,10 @@
 
   <script>
     const STORAGE_KEY = "fnh-field-check-v1";
-    const CHECK_MS = 30 * 60 * 1000;
+    const DEFAULT_CHECK_MINUTES = 30;
     const DEFAULT_WEBHOOK_URL = "https://script.google.com/a/macros/fomusic.org/s/AKfycbxkOeHYJAE8eHSrbY339feEpAMXo2641Z-s269oG_jQYowBRhbubyErgbbkPzXIKGCMDw/exec";
     const STUDENT_RESET_VERSION = "2026-09-24-all-students-1";
-    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: DEFAULT_WEBHOOK_URL, teacherKey: "", teacherResetAt: 0, teacherResetCount: 0, lastTeacherTotal: 0, studentResetVersion: "", lastSeenMessageId: "" };
+    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: DEFAULT_WEBHOOK_URL, teacherKey: "", teacherResetAt: 0, teacherResetCount: 0, lastTeacherTotal: 0, studentResetVersion: "", lastSeenMessageId: "", checkMinutes: DEFAULT_CHECK_MINUTES };
     let state = loadState();
     prepareSharedConnectionAndStudentReset();
     ensureTeacherKey();
@@ -415,6 +415,8 @@
 
     function prepareSharedConnectionAndStudentReset() {
       if (!state.webhookUrl) state.webhookUrl = DEFAULT_WEBHOOK_URL;
+      const storedMinutes = Math.round(Number(state.checkMinutes));
+      state.checkMinutes = Number.isFinite(storedMinutes) && storedMinutes >= 1 && storedMinutes <= 180 ? storedMinutes : DEFAULT_CHECK_MINUTES;
       if (state.studentResetVersion !== STUDENT_RESET_VERSION) {
         Object.assign(state, {
           status: "idle", student: "", destination: "", startedAt: null, dueAt: null,
@@ -454,6 +456,11 @@
 
     function labelFor(step) { return ({ out: "Checked out", safe: "Safety check", returning: "Heading back", in: "Safely in", test: "Connection test" })[step] || step; }
 
+    function safetyMinutes() {
+      const minutes = Math.round(Number(state.checkMinutes));
+      return Number.isFinite(minutes) && minutes >= 1 && minutes <= 180 ? minutes : DEFAULT_CHECK_MINUTES;
+    }
+
     function updateStudentRoster(students) {
       if (!Array.isArray(students) || !students.length) return;
       const roster = [...new Set([...builtInStudents, ...students])];
@@ -491,6 +498,25 @@
       });
     }
 
+    function playSafetyReminderSound() {
+      unlockMessageAudio();
+      if (!messageAudioContext || messageAudioContext.state !== "running") return;
+      const start = messageAudioContext.currentTime + .02;
+      [988, 988, 1319, 988].forEach((frequency, index) => {
+        const oscillator = messageAudioContext.createOscillator();
+        const gain = messageAudioContext.createGain();
+        const begins = start + index * .2;
+        oscillator.type = "triangle";
+        oscillator.frequency.setValueAtTime(frequency, begins);
+        gain.gain.setValueAtTime(.0001, begins);
+        gain.gain.exponentialRampToValueAtTime(.38, begins + .018);
+        gain.gain.exponentialRampToValueAtTime(.0001, begins + .18);
+        oscillator.connect(gain).connect(messageAudioContext.destination);
+        oscillator.start(begins);
+        oscillator.stop(begins + .2);
+      });
+    }
+
     async function loadStudentUpdates() {
       if (studentUpdateLoading) return;
       studentUpdateLoading = true;
@@ -500,6 +526,16 @@
         const data = await response.json();
         if (data.error) throw new Error(data.error);
         updateStudentRoster(data.students);
+        const sharedMinutes = Math.round(Number(data.checkMinutes));
+        if (Number.isFinite(sharedMinutes) && sharedMinutes >= 1 && sharedMinutes <= 180 && sharedMinutes !== state.checkMinutes) {
+          state.checkMinutes = sharedMinutes;
+          if (state.status === "out" && state.startedAt) {
+            state.dueAt = new Date(state.startedAt).getTime() + sharedMinutes * 60 * 1000;
+            state.reminderSent = false;
+          }
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          render();
+        }
         const student = els.name.value || state.student;
         const messages = (Array.isArray(data.messages) ? data.messages : []).filter((item) => item.recipient === "Everyone" || (student && item.recipient === student));
         const newest = messages[messages.length - 1];
@@ -551,7 +587,7 @@
         els.statusTitle.textContent = "Not checked out";
         els.statusDetail.textContent = "No active field trip";
         els.headline.textContent = "Heading outside?";
-        els.lede.textContent = "Tell your teacher before you leave. The app will start your 30-minute safety timer.";
+        els.lede.textContent = `Tell your teacher before you leave. The app will start your ${safetyMinutes()}-minute safety timer.`;
       } else if (state.status === "in") {
         els.dot.className = "status-dot done";
         els.statusTitle.textContent = "Safely back in";
@@ -573,6 +609,7 @@
       };
       $$(".action").forEach((button) => { $("strong", button).textContent = actionLabels[button.dataset.step]; });
       $(".action[data-step='out'] small").textContent = "Captures location + starts timer";
+      $(".action[data-step='safe'] small").textContent = `${safetyMinutes()}-minute check`;
 
       const lastLocation = [...state.events].reverse().find((event) => event.latitude != null);
       els.locationLine.hidden = !lastLocation;
@@ -581,7 +618,7 @@
       $$("[data-timeline]").forEach((item) => {
         const event = [...state.events].reverse().find((entry) => entry.step === item.dataset.timeline && (!state.tripId || entry.tripId === state.tripId));
         item.classList.toggle("complete", Boolean(event));
-        $("time", item).textContent = event ? formatTime(event.at) : item.dataset.timeline === "safe" ? "Due after 30 minutes" : "Waiting";
+        $("time", item).textContent = event ? formatTime(event.at) : item.dataset.timeline === "safe" ? `Due after ${safetyMinutes()} minute${safetyMinutes()===1?"":"s"}` : "Waiting";
       });
 
       els.sync.textContent = state.webhookUrl ? (state.queue.length ? `${state.queue.length} update${state.queue.length === 1 ? "" : "s"} waiting to sync` : "Connected to Google Sheet") : (state.queue.length ? `${state.queue.length} update${state.queue.length === 1 ? "" : "s"} saved on this device` : "Ready on this device");
@@ -590,7 +627,7 @@
     }
 
     function updateTimer() {
-      if (!state.dueAt || state.status === "idle" || state.status === "in") { els.timer.textContent = state.status === "in" ? "DONE" : "30:00"; return; }
+      if (!state.dueAt || state.status !== "out") { els.timer.style.color = "var(--lime)";els.timer.textContent = state.status === "in" ? "DONE" : state.status === "safe" ? "SAFE" : state.status === "returning" ? "RETURNING" : `${String(safetyMinutes()).padStart(2,"0")}:00`; return; }
       const remaining = state.dueAt - Date.now();
       if (remaining <= 0) {
         els.timer.textContent = "CHECK IN";
@@ -609,11 +646,12 @@
     }
 
     function notifyStudent() {
-      showToast("30-minute safety check due — please tap “I’m safe.”");
+      playSafetyReminderSound();
+      showToast(`${safetyMinutes()}-minute safety check due — please tap “I’m safe.”`);
       if ("Notification" in window && Notification.permission === "granted") {
         new Notification("FNH safety check", { body: "Please open Field Check and tap “I’m safe.”", icon: "./icon.svg", tag: "fnh-check" });
       }
-      if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+      if (navigator.vibrate) navigator.vibrate([220, 100, 220, 100, 300]);
     }
 
     function showToast(message) {
@@ -657,7 +695,7 @@
         state.student = els.name.value.trim();
         state.destination = "";
         state.startedAt = new Date().toISOString();
-        state.dueAt = Date.now() + CHECK_MS;
+        state.dueAt = Date.now() + safetyMinutes() * 60 * 1000;
         state.reminderSent = false;
         state.tripId = String(Date.now());
       }

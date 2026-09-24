@@ -4,6 +4,7 @@ const TEACHER_KEY = 'REPLACE_WITH_THE_PRIVATE_TEACHER_SYNC_KEY';
 const LOG_SHEET_NAME = 'Field Log';
 const STUDENTS_SHEET_NAME = 'Students';
 const MESSAGES_SHEET_NAME = 'Messages';
+const DEFAULT_CHECK_MINUTES = 30;
 const ROSTER_VERSION = 'fnh-roster-2026-09-24-v2';
 const DEFAULT_STUDENTS = [
   'Ruth Allen ’28', 'Maiyah Calleb ’27', 'Michaela Coles ’28', 'Tristin Coon ’27',
@@ -74,6 +75,13 @@ function doPost(e) {
       getMessagesSheet_().appendRow([new Date(), Utilities.getUuid(), data.recipient || 'Everyone', message]);
       return json_({ ok: true });
     }
+    if (data.action === 'setTimer') {
+      requireTeacher_(data);
+      const minutes = Math.round(Number(data.checkMinutes));
+      if (!isFinite(minutes) || minutes < 1 || minutes > 180) throw new Error('Timer must be between 1 and 180 minutes');
+      PropertiesService.getScriptProperties().setProperty('CHECK_MINUTES', String(minutes));
+      return json_({ ok: true, checkMinutes: minutes });
+    }
     if (data.action === 'reset') {
       requireTeacher_(data);
       const sheet = getLogSheet_();
@@ -96,10 +104,10 @@ function doGet(e) {
     if (params.view === 'student') {
       const student = String(params.student || '');
       const messages = readMessages_().filter(function(item) { return item.recipient === 'Everyone' || (student && item.recipient === student); });
-      return json_({ students: readStudents_(), messages: messages });
+      return json_({ students: readStudents_(), messages: messages, checkMinutes: getCheckMinutes_() });
     }
     if (params.key !== TEACHER_KEY) return json_({ error: 'Unauthorized' });
-    return json_({ events: readEvents_(), students: readStudents_(), messages: readMessages_() });
+    return json_({ events: readEvents_(), students: readStudents_(), messages: readMessages_(), checkMinutes: getCheckMinutes_() });
   } catch (error) {
     return json_({ error: String(error.message || error) });
   }
@@ -109,6 +117,11 @@ function readStudents_() {
   const sheet = getStudentsSheet_();
   if (sheet.getLastRow() < 2) return [];
   return sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().map(String).filter(Boolean);
+}
+
+function getCheckMinutes_() {
+  const value = Math.round(Number(PropertiesService.getScriptProperties().getProperty('CHECK_MINUTES')));
+  return isFinite(value) && value >= 1 && value <= 180 ? value : DEFAULT_CHECK_MINUTES;
 }
 
 function readMessages_() {
