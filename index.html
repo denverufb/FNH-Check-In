@@ -79,18 +79,16 @@
     .timer { margin-left: auto; color: var(--lime); font-variant-numeric: tabular-nums; font-weight: 850; font-size: 1.05rem; white-space: nowrap; }
     @keyframes pulse { 50% { box-shadow: 0 0 0 10px rgba(255,120,73,0); } }
 
-    .actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: auto; }
+    .actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: auto; justify-items: center; align-items: center; }
     .action {
-      min-height: 100px; padding: 17px; border-radius: 20px; border: 1px solid var(--line); color: var(--ink); background: rgba(255,255,255,.045); text-align: left; cursor: pointer; transition: transform .18s ease, border-color .18s ease, background .18s ease; position: relative; overflow: hidden;
+      width: min(100%, 150px); aspect-ratio: 1; min-height: 0; padding: 18px; border-radius: 50%; border: 1px solid var(--line); color: var(--ink); background: rgba(255,255,255,.045); display: grid; place-items: center; text-align: center; cursor: pointer; transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease; position: relative; overflow: hidden;
     }
     .action:disabled { opacity: 1; cursor: not-allowed; color: var(--muted); background: rgba(255,255,255,.035); }
     .action:not(:disabled):active { transform: scale(.98); }
     .action.primary { color: var(--lime-dark); background: var(--lime); border-color: transparent; }
     .action.current { color: var(--lime-dark); background: var(--lime); border-color: transparent; box-shadow: 0 0 0 4px rgba(189,245,108,.14); }
     .action.completed:disabled { color: var(--ink); border-color: rgba(189,245,108,.28); background: rgba(189,245,108,.07); }
-    .action .num { display: block; font-size: .7rem; letter-spacing: .12em; font-weight: 900; opacity: .7; }
-    .action strong { display: block; margin-top: 8px; font-size: 1.15rem; line-height: 1.05; }
-    .action small { display: block; margin-top: 6px; opacity: .7; font-size: .74rem; }
+    .action strong { display: block; margin: 0; font-size: clamp(.95rem, 1.8vw, 1.12rem); line-height: 1.15; }
 
     .side { display: grid; gap: 18px; }
     .side-card { padding: 22px; }
@@ -177,16 +175,15 @@
       .main-card { min-height: calc(100dvh - 105px); padding: 22px 18px 18px; border-radius: 25px; }
       h2 { font-size: clamp(2.5rem, 13.5vw, 4.2rem); }
       .identity { grid-template-columns: 1fr; }
-      .actions { gap: 9px; }
-      .action { min-height: 92px; padding: 15px; }
+      .actions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .action { width: min(100%, 145px); min-height: 0; padding: 16px; }
       .side { grid-template-columns: 1fr; }
       .teacher-summary { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 390px) {
-      .actions { grid-template-columns: 1fr; }
       .main-card { min-height: auto; }
-      .action { min-height: 76px; }
+      .action { min-height: 0; padding: 14px; }
     }
 
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
@@ -246,10 +243,10 @@
         </div>
 
         <div class="actions" aria-label="Field status actions">
-          <button class="action primary" data-step="out"><span class="num">STEP 01</span><strong>I’m going out</strong><small>Notifies teacher + starts timer</small></button>
-          <button class="action" data-step="safe" disabled><span class="num">STEP 02</span><strong>I’m safe</strong><small>Safety check</small></button>
-          <button class="action" data-step="returning" disabled><span class="num">STEP 03</span><strong>Heading back</strong><small>Let your teacher know</small></button>
-          <button class="action" data-step="in" disabled><span class="num">STEP 04</span><strong>I made it in</strong><small>Closes your field trip</small></button>
+          <button class="action primary" data-step="out"><strong>I’m going out</strong></button>
+          <button class="action" data-step="safe" disabled><strong>I’m safe</strong></button>
+          <button class="action" data-step="returning" disabled><strong>Heading back</strong></button>
+          <button class="action" data-step="in" disabled><strong>I made it in</strong></button>
         </div>
       </article>
 
@@ -602,14 +599,12 @@
         els.lede.textContent = state.status === "out" ? "Your teacher knows you’re outside. Tap “I’m safe” when the timer reaches zero." : state.status === "safe" ? "Your safety check is recorded. Tap “Heading back” when you start your return." : "Your teacher knows you’re on your way. Tap once more when you are safely inside.";
       }
       const actionLabels = {
-        out: state.status === "in" ? "Start another trip" : "I’m going out",
+        out: "I’m going out",
         safe: "I’m safe",
         returning: "Heading back",
         in: "I made it in"
       };
       $$(".action").forEach((button) => { $("strong", button).textContent = actionLabels[button.dataset.step]; });
-      $(".action[data-step='out'] small").textContent = "Captures location + starts timer";
-      $(".action[data-step='safe'] small").textContent = `${safetyMinutes()}-minute check`;
 
       const lastLocation = [...state.events].reverse().find((event) => event.latitude != null);
       els.locationLine.hidden = !lastLocation;
