@@ -38,7 +38,7 @@
     <p class="live" id="liveStatus">Connecting to the shared field log…</p>
 
     <div class="grid">
-      <section class="card wide"><h2>Student locations</h2><div id="map"></div><p class="helper">Markers show the latest reported location—not continuous GPS tracking.</p></section>
+      <section class="card wide"><h2>Student locations</h2><div id="map"></div><p class="helper">Real satellite imagery centered on the Principia School campus in Town and Country. Markers show each student’s latest reported location—not continuous GPS tracking. The viewing limit is not an official property boundary.</p></section>
       <section class="card"><h2>Current student status</h2><div class="student-list" id="studentCards"><div class="empty">No updates yet.</div></div></section>
       <section class="card">
         <h2>Send a message</h2>
@@ -67,6 +67,8 @@
   <script>
     const STORAGE_KEY="fnh-field-check-v1";
     const WEBHOOK="https://script.google.com/a/macros/fomusic.org/s/AKfycbxkOeHYJAE8eHSrbY339feEpAMXo2641Z-s269oG_jQYowBRhbubyErgbbkPzXIKGCMDw/exec";
+    const SCHOOL_CENTER=[38.6298665,-90.4726362];
+    const SCHOOL_VIEW_BOUNDS=[[38.6215,-90.4865],[38.642,-90.4585]];
     let state={};try{state=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")}catch{}
     let events=[],students=[],messages=[],checkMinutes=30,timerBackendReady=false,timer=null,map=null,markers=null,toastTimer=null,teacherAudioContext=null,knownEventKeys=null;
     const PORTRAITS={
@@ -87,7 +89,7 @@
     $("#loginButton").onclick=()=>{$("#password").value==="teacher"?openDashboard():toast("Incorrect teacher password.")};
     $("#password").addEventListener("keydown",e=>{if(e.key==="Enter")$("#loginButton").click()});
     $("#saveKey").onclick=()=>{const value=$("#teacherKeyInput").value.trim();if(!value)return toast("Paste the private teacher key.");state.teacherKey=value;save();openDashboard()};
-    function initMap(){if(map)return;map=L.map("map").setView([38.95,-90.35],13);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);markers=L.layerGroup().addTo(map);setTimeout(()=>map.invalidateSize(),100)}
+    function initMap(){if(map)return;const campusBounds=L.latLngBounds(SCHOOL_VIEW_BOUNDS);map=L.map("map",{minZoom:15,maxZoom:19,maxBounds:campusBounds,maxBoundsViscosity:1}).setView(SCHOOL_CENTER,16);L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:'Imagery &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'}).addTo(map);L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,opacity:.85,attribution:'Labels &copy; Esri'}).addTo(map);markers=L.layerGroup().addTo(map);setTimeout(()=>map.invalidateSize(),100)}
     function visibleEvents(all){let cut=Number(state.teacherResetCount||0);if(all.length<cut)cut=0;state.teacherResetCount=cut;state.lastTeacherTotal=all.length;save();return all.slice(cut)}
     async function load(){const response=await fetch(`${WEBHOOK}?view=teacher&key=${encodeURIComponent(key())}&t=${Date.now()}`,{cache:"no-store"});const data=await response.json();if(data.error)throw new Error(data.error);const nextEvents=visibleEvents(Array.isArray(data.events)?data.events:[]);announceNewStudentUpdates(nextEvents);events=nextEvents;students=Array.isArray(data.students)?data.students:[];messages=Array.isArray(data.messages)?data.messages:[];const sharedMinutes=Math.round(Number(data.checkMinutes));timerBackendReady=Number.isFinite(sharedMinutes)&&sharedMinutes>=1&&sharedMinutes<=180;if(timerBackendReady)checkMinutes=sharedMinutes;render();return data}
     async function poll(){try{await load();$("#liveStatus").textContent=`Live · ${events.length} update${events.length===1?"":"s"} · continuously checking`}catch{$("#liveStatus").textContent="Connection interrupted — retrying automatically."}timer=setTimeout(poll,400)}
