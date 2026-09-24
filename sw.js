@@ -1,4 +1,4 @@
-const CACHE = "fnh-field-check-github-v14";
+const CACHE = "fnh-field-check-github-v15";
 const ASSETS = ["./", "./index.html", "./teacher.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", (event) => {

@@ -397,6 +397,7 @@
       locationLine: $("#locationLine"), locationText: $("#locationText"), ready: $("#studentReadyDialog"),
       teacherMessage: $("#teacherMessage"), teacherMessageText: $("#teacherMessageText")
     };
+    const builtInStudents = [...els.name.options].map((option) => option.value).filter(Boolean);
 
     function loadState() {
       try { return { ...emptyState, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") }; }
@@ -446,10 +447,11 @@
 
     function updateStudentRoster(students) {
       if (!Array.isArray(students) || !students.length) return;
+      const roster = [...new Set([...builtInStudents, ...students])];
       const selected = els.name.value || state.student || "";
       els.name.replaceChildren(new Option("Select your name", ""));
-      students.forEach((name) => els.name.append(new Option(name, name)));
-      if (selected && !students.includes(selected)) els.name.append(new Option(selected, selected));
+      roster.forEach((name) => els.name.append(new Option(name, name)));
+      if (selected && !roster.includes(selected)) els.name.append(new Option(selected, selected));
       els.name.value = selected;
     }
 
