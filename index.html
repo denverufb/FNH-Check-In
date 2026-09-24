@@ -61,7 +61,7 @@
     h2 { margin: 0; font-size: clamp(2rem, 7vw, 4.6rem); line-height: .94; letter-spacing: -.065em; max-width: 720px; }
     .lede { margin: 14px 0 26px; max-width: 640px; color: var(--muted); font-size: 1rem; line-height: 1.55; }
 
-    .identity { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 22px; }
+    .identity { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 22px; }
     label { display: block; color: var(--muted); font-size: .82rem; font-weight: 700; }
     input, select, textarea {
       width: 100%; margin-top: 7px; border: 1px solid var(--line); border-radius: 15px; background: rgba(1, 14, 11, .55); color: var(--ink); padding: 14px 15px; outline: none; min-height: 51px;
@@ -222,9 +222,7 @@
               <option>Khanye Williams ’27</option>
             </select>
           </label>
-          <label>Where are you going?
-            <input id="destination" placeholder="Trail, plot, stream…">
-          </label>
+          <input id="destination" type="hidden" value="">
         </div>
 
         <div class="status-strip" aria-live="polite">
@@ -491,15 +489,15 @@
       } else if (state.status === "in") {
         els.dot.className = "status-dot done";
         els.statusTitle.textContent = "Safely back in";
-        els.statusDetail.textContent = `${state.student} · ${state.destination}`;
+        els.statusDetail.textContent = state.student;
         els.headline.textContent = "You’re all checked in.";
         els.lede.textContent = "Your field trip is complete. You can start another trip whenever you head out again.";
       } else {
         els.dot.className = "status-dot live";
         els.statusTitle.textContent = labelFor(state.status);
-        els.statusDetail.textContent = `${state.student} · ${state.destination}`;
+        els.statusDetail.textContent = state.student;
         els.headline.textContent = state.status === "out" ? "Stay safe out there." : state.status === "safe" ? "Thanks for checking in." : "See you back inside.";
-        els.lede.textContent = state.status === "out" ? "Your teacher has your destination. Tap “I’m safe” when the timer reaches zero." : state.status === "safe" ? "Your safety check is recorded. Tap “Heading back” when you start your return." : "Your teacher knows you’re on your way. Tap once more when you are safely inside.";
+        els.lede.textContent = state.status === "out" ? "Your teacher knows you’re outside. Tap “I’m safe” when the timer reaches zero." : state.status === "safe" ? "Your safety check is recorded. Tap “Heading back” when you start your return." : "Your teacher knows you’re on your way. Tap once more when you are safely inside.";
       }
       const actionLabels = {
         out: state.status === "in" ? "Start another trip" : "I’m going out",
@@ -572,8 +570,7 @@
 
     async function completeStep(step, button) {
       const name = els.name.value.trim();
-      const destination = els.destination.value.trim();
-      if (step === "out" && (!name || !destination)) { showToast("Select your name and add your destination first."); (!name ? els.name : els.destination).focus(); return; }
+      if (step === "out" && !name) { showToast("Select your name first."); els.name.focus(); return; }
       button.disabled = true;
       button.setAttribute("aria-busy", "true");
       let location;
@@ -592,7 +589,7 @@
       }
       if (step === "out") {
         state.student = els.name.value.trim();
-        state.destination = els.destination.value.trim();
+        state.destination = "";
         state.startedAt = new Date().toISOString();
         state.dueAt = Date.now() + CHECK_MS;
         state.reminderSent = false;
@@ -685,9 +682,9 @@
         const identity = document.createElement("div");
         const studentName = document.createElement("strong");
         studentName.textContent = name;
-        const destination = document.createElement("small");
-        destination.textContent = latest.destination || "No destination";
-        identity.append(studentName, destination);
+        const updated = document.createElement("small");
+        updated.textContent = `Updated ${new Date(latest.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+        identity.append(studentName, updated);
         const status = document.createElement("div");
         status.className = "student-status";
         status.textContent = latest.status || labelFor(latest.step);
