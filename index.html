@@ -83,10 +83,11 @@
     .action {
       min-height: 100px; padding: 17px; border-radius: 20px; border: 1px solid var(--line); color: var(--ink); background: rgba(255,255,255,.045); text-align: left; cursor: pointer; transition: transform .18s ease, border-color .18s ease, background .18s ease; position: relative; overflow: hidden;
     }
-    .action:disabled { opacity: .38; cursor: not-allowed; }
+    .action:disabled { opacity: 1; cursor: not-allowed; color: var(--muted); background: rgba(255,255,255,.035); }
     .action:not(:disabled):active { transform: scale(.98); }
     .action.primary { color: var(--lime-dark); background: var(--lime); border-color: transparent; }
-    .action.current { border-color: var(--orange); background: rgba(255,120,73,.1); }
+    .action.current { color: var(--lime-dark); background: var(--lime); border-color: transparent; box-shadow: 0 0 0 4px rgba(189,245,108,.14); }
+    .action.completed:disabled { color: var(--ink); border-color: rgba(189,245,108,.28); background: rgba(189,245,108,.07); }
     .action .num { display: block; font-size: .7rem; letter-spacing: .12em; font-weight: 900; opacity: .7; }
     .action strong { display: block; margin-top: 8px; font-size: 1.15rem; line-height: 1.05; }
     .action small { display: block; margin-top: 6px; opacity: .7; font-size: .74rem; }
@@ -143,6 +144,17 @@
     td strong { color: var(--ink); }
     .map-link { color: var(--sky); font-weight: 800; text-decoration: none; }
     .empty-log { padding: 36px 18px; text-align: center; color: var(--muted); }
+    .student-cards { display: grid; gap: 12px; }
+    .student-card { border: 1px solid var(--line); border-radius: 18px; background: rgba(0,0,0,.13); overflow: hidden; }
+    .student-card summary { list-style: none; display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; align-items: center; padding: 16px; cursor: pointer; }
+    .student-card summary::-webkit-details-marker { display: none; }
+    .student-card summary strong { color: var(--ink); font-size: 1rem; }
+    .student-card summary small { color: var(--muted); }
+    .student-status { color: var(--lime); font-weight: 850; text-align: right; }
+    .student-history { border-top: 1px solid var(--line); padding: 6px 16px 14px; }
+    .history-row { display: grid; grid-template-columns: minmax(110px,.8fr) 1fr auto; gap: 12px; padding: 11px 0; border-bottom: 1px solid rgba(255,255,255,.07); align-items: start; font-size: .82rem; }
+    .history-row:last-child { border-bottom: 0; }
+    .history-row time, .history-row span { color: var(--muted); }
     .loading-label { color: var(--muted); font-size: .8rem; margin: 0 0 12px; }
     .live-label { display: inline-flex; align-items: center; gap: 7px; }
     .live-label::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 5px rgba(189,245,108,.1); }
@@ -335,11 +347,7 @@
         <div class="summary-box"><strong id="eventCount">0</strong><span>Total updates</span></div>
       </div>
       <p class="loading-label" id="teacherSource">Showing activity saved on this device.</p>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Student</th><th>Update</th><th>Time</th><th>Destination</th><th>Location</th></tr></thead>
-          <tbody id="teacherRows"></tbody>
-        </table>
+      <div class="student-cards" id="teacherRows">
         <div class="empty-log" id="emptyLog">No student activity has been recorded yet.</div>
       </div>
       <div class="dialog-actions"><button class="btn" id="refreshTeacher">Refresh now</button><button class="btn" id="enableTeacherAlerts">Enable teacher alerts</button><button class="btn danger" id="clearTeacherActivity">End-of-day reset</button></div>
@@ -413,7 +421,8 @@
       $$(".action").forEach((button, index) => {
         button.disabled = index !== activeIndex;
         button.classList.toggle("primary", index === activeIndex);
-        button.classList.toggle("current", index === activeIndex && index > 0 && state.status !== "in");
+        button.classList.toggle("current", index === activeIndex);
+        button.classList.toggle("completed", state.status !== "idle" && state.status !== "in" && index < activeIndex);
       });
       if (state.status === "idle") {
         $(".action[data-step='out']").disabled = false;
@@ -586,28 +595,57 @@
       $("#outsideCount").textContent = outside;
       $("#eventCount").textContent = sorted.length;
       els.teacherRows.replaceChildren();
-      $("#emptyLog").hidden = sorted.length > 0;
+      if (!sorted.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-log";
+        empty.id = "emptyLog";
+        empty.textContent = "No student activity has been recorded yet.";
+        els.teacherRows.append(empty);
+        return;
+      }
+      const grouped = new Map();
       sorted.forEach((event) => {
-        const row = document.createElement("tr");
-        const cells = [event.student || "—", event.status || labelFor(event.step), new Date(event.at).toLocaleString(), event.destination || "—"];
-        cells.forEach((value, index) => {
-          const cell = document.createElement("td");
-          if (index === 0) { const strong = document.createElement("strong"); strong.textContent = value; cell.append(strong); }
-          else cell.textContent = value;
-          row.append(cell);
+        const name = event.student || "Unknown student";
+        if (!grouped.has(name)) grouped.set(name, []);
+        grouped.get(name).push(event);
+      });
+      grouped.forEach((studentEvents, name) => {
+        const latest = studentEvents[0];
+        const card = document.createElement("details");
+        card.className = "student-card";
+        const summary = document.createElement("summary");
+        const identity = document.createElement("div");
+        const studentName = document.createElement("strong");
+        studentName.textContent = name;
+        const destination = document.createElement("small");
+        destination.textContent = latest.destination || "No destination";
+        identity.append(studentName, destination);
+        const status = document.createElement("div");
+        status.className = "student-status";
+        status.textContent = latest.status || labelFor(latest.step);
+        summary.append(identity, status);
+        const history = document.createElement("div");
+        history.className = "student-history";
+        studentEvents.forEach((event) => {
+          const row = document.createElement("div");
+          row.className = "history-row";
+          const update = document.createElement("strong");
+          update.textContent = event.status || labelFor(event.step);
+          const time = document.createElement("time");
+          time.textContent = new Date(event.at).toLocaleString();
+          const location = document.createElement(event.latitude != null ? "a" : "span");
+          if (event.latitude != null) {
+            location.className = "map-link";
+            location.href = event.mapsUrl || `https://maps.google.com/?q=${event.latitude},${event.longitude}`;
+            location.target = "_blank";
+            location.rel = "noopener";
+            location.textContent = "View location";
+          } else location.textContent = "No location";
+          row.append(update, time, location);
+          history.append(row);
         });
-        const locationCell = document.createElement("td");
-        if (event.latitude != null && event.longitude != null) {
-          const link = document.createElement("a");
-          link.className = "map-link";
-          link.href = event.mapsUrl || `https://maps.google.com/?q=${event.latitude},${event.longitude}`;
-          link.target = "_blank";
-          link.rel = "noopener";
-          link.textContent = `View map (±${event.accuracy || "?"} m)`;
-          locationCell.append(link);
-        } else locationCell.textContent = "Not captured";
-        row.append(locationCell);
-        els.teacherRows.append(row);
+        card.append(summary, history);
+        els.teacherRows.append(card);
       });
     }
 
@@ -672,10 +710,18 @@
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify({ action: "reset", teacherKey: state.teacherKey })
         });
-        await new Promise((resolve) => setTimeout(resolve, 900));
+        state.events = [];
+        state.queue = [];
+        saveState();
+        await new Promise((resolve) => setTimeout(resolve, 1400));
         teacherEventSignature = "";
-        const events = await loadTeacherEvents({ announce: false });
-        showToast(Array.isArray(events) && events.length === 0 ? "Teacher activity cleared. Ready for a new day." : "Reset was sent. If activity remains, redeploy the updated Apps Script.");
+        let events = await loadTeacherEvents({ announce: false });
+        for (let attempt = 0; Array.isArray(events) && events.length && attempt < 4; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          teacherEventSignature = "";
+          events = await loadTeacherEvents({ announce: false });
+        }
+        showToast(Array.isArray(events) && events.length === 0 ? "Teacher activity cleared. Ready for a new day." : "The shared Sheet did not clear. Open setup and copy the newest Apps Script once.");
       } catch {
         showToast("The activity could not be cleared. Check the Sheet connection.");
       } finally {
