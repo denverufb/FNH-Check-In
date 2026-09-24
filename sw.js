@@ -1,5 +1,5 @@
-const CACHE = "fnh-field-check-github-v11";
-const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
+const CACHE = "fnh-field-check-github-v12";
+const ASSETS = ["./", "./index.html", "./teacher.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));

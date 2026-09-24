@@ -9,7 +9,11 @@ An installable, mobile-friendly field check-out app for students and teachers.
 - GPS coordinates captured with every student update
 - Offline queue for updates when a phone temporarily loses service
 - Shared Google Sheet activity log
-- Teacher dashboard that refreshes every five seconds
+- Teacher dashboard that continuously refreshes
+- Separate student and teacher URLs
+- Teacher location map with latest reported student positions
+- Teacher-managed student roster
+- Sheet-backed teacher messages shown in the student app
 - Silent background refresh that keeps the current activity visible
 - Confirmed end-of-day reset that clears activity while preserving Sheet headers
 - Private teacher sync key kept out of student setup links
@@ -56,9 +60,11 @@ The app must be served over HTTPS for phone location and notifications to work. 
 
 ## Teacher view
 
-Open **Teacher view** at the bottom of the app. The current demonstration password is `teacher`. The dashboard checks the shared Sheet every five seconds and can show on-screen alerts while open.
+Open `teacher.html` from the published site. The current demonstration password is `teacher`. The dashboard continuously checks the shared Sheet and includes grouped statuses, a latest-location map, roster controls, messages, and end-of-day reset.
 
-For another teacher phone or computer, open the gear on that device and paste both the same Google Apps Script Web App URL and the same private teacher sync key, then select **Save connection**. The main teacher can use **Copy private key** to share it securely. Never send the private key to students.
+For another teacher phone or computer, open `teacher.html`, enter the password, and paste the same private teacher sync key when prompted. The Script URL is already configured. Never send the private key to students.
+
+Roster management and teacher messages require the current `google-apps-script/Code.gs`. Replace the Apps Script editor contents with that file while preserving the real private teacher key, then create a new web-app deployment version once.
 
 ## Privacy and production use
 

@@ -130,6 +130,11 @@
     .teacher-entry { display: flex; justify-content: center; padding: 24px 0 4px; }
     .teacher-link { display: inline-flex; align-items: center; gap: 9px; border: 0; background: none; color: var(--muted); font-weight: 800; cursor: pointer; padding: 12px 16px; }
     .teacher-link:hover { color: var(--ink); }
+    #settingsButton, .teacher-entry { display: none; }
+    .teacher-message { margin: 0 0 16px; padding: 15px; border: 1px solid rgba(129,217,233,.4); border-radius: 17px; background: rgba(129,217,233,.11); }
+    .teacher-message strong { display: block; color: var(--sky); margin-bottom: 5px; }
+    .teacher-message p { margin: 0 0 11px; line-height: 1.45; }
+    .teacher-message button { min-height: 38px; }
     .location-line { display: flex; align-items: center; gap: 6px; margin-top: 5px; color: var(--sky); font-size: .75rem; font-weight: 750; }
     .teacher-dialog { width: min(94vw, 980px); }
     .teacher-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
@@ -226,6 +231,11 @@
           <span class="status-dot" id="statusDot"></span>
           <div class="status-copy"><strong id="statusTitle">Not checked out</strong><span id="statusDetail">No active field trip</span></div>
           <div class="timer" id="timer">30:00</div>
+        </div>
+        <div class="teacher-message" id="teacherMessage" hidden>
+          <strong>Message from your teacher</strong>
+          <p id="teacherMessageText"></p>
+          <button class="btn" id="markMessageSeen">Mark as seen</button>
         </div>
         <div class="location-line" id="locationLine" hidden>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -362,7 +372,7 @@
     const CHECK_MS = 30 * 60 * 1000;
     const DEFAULT_WEBHOOK_URL = "https://script.google.com/a/macros/fomusic.org/s/AKfycbxkOeHYJAE8eHSrbY339feEpAMXo2641Z-s269oG_jQYowBRhbubyErgbbkPzXIKGCMDw/exec";
     const STUDENT_RESET_VERSION = "2026-09-24-all-students-1";
-    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: DEFAULT_WEBHOOK_URL, teacherKey: "", teacherResetAt: 0, teacherResetCount: 0, lastTeacherTotal: 0, studentResetVersion: "" };
+    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: DEFAULT_WEBHOOK_URL, teacherKey: "", teacherResetAt: 0, teacherResetCount: 0, lastTeacherTotal: 0, studentResetVersion: "", lastSeenMessageId: "" };
     let state = loadState();
     prepareSharedConnectionAndStudentReset();
     ensureTeacherKey();
@@ -378,7 +388,8 @@
       timer: $("#timer"), headline: $("#headline"), lede: $("#lede"), timeline: $("#timeline"), toast: $("#toast"), sync: $("#syncLabel"),
       settings: $("#settingsDialog"), install: $("#installDialog"), webhook: $("#webhookUrl"), teacherKey: $("#teacherKey"),
       connection: $("#connectionStatus"), teacherLogin: $("#teacherLoginDialog"), teacher: $("#teacherDialog"), teacherRows: $("#teacherRows"),
-      locationLine: $("#locationLine"), locationText: $("#locationText"), ready: $("#studentReadyDialog")
+      locationLine: $("#locationLine"), locationText: $("#locationText"), ready: $("#studentReadyDialog"),
+      teacherMessage: $("#teacherMessage"), teacherMessageText: $("#teacherMessageText")
     };
 
     function loadState() {
@@ -426,6 +437,36 @@
     }
 
     function labelFor(step) { return ({ out: "Checked out", safe: "Safety check", returning: "Heading back", in: "Safely in", test: "Connection test" })[step] || step; }
+
+    function updateStudentRoster(students) {
+      if (!Array.isArray(students) || !students.length) return;
+      const selected = els.name.value || state.student || "";
+      els.name.replaceChildren(new Option("Select your name", ""));
+      students.forEach((name) => els.name.append(new Option(name, name)));
+      if (selected && !students.includes(selected)) els.name.append(new Option(selected, selected));
+      els.name.value = selected;
+    }
+
+    let displayedMessageId = "";
+    async function loadStudentUpdates() {
+      try {
+        const currentStudent = els.name.value || state.student || "";
+        const response = await fetch(`${state.webhookUrl}?view=student&student=${encodeURIComponent(currentStudent)}&t=${Date.now()}`, { cache: "no-store" });
+        const data = await response.json();
+        updateStudentRoster(data.students);
+        const student = els.name.value || state.student;
+        const messages = (Array.isArray(data.messages) ? data.messages : []).filter((item) => item.recipient === "Everyone" || (student && item.recipient === student));
+        const newest = messages[messages.length - 1];
+        if (!newest || newest.id === state.lastSeenMessageId) { els.teacherMessage.hidden = true; return; }
+        els.teacherMessageText.textContent = newest.message;
+        els.teacherMessage.dataset.messageId = newest.id;
+        els.teacherMessage.hidden = false;
+        if (displayedMessageId !== newest.id) {
+          displayedMessageId = newest.id;
+          if ("Notification" in window && Notification.permission === "granted") new Notification("Message from your teacher", { body: newest.message, icon: "./icon.svg", tag: `fnh-message-${newest.id}` });
+        }
+      } catch { /* Keep check-in available while the shared service reconnects. */ }
+    }
 
     function render() {
       els.name.value = state.student || "";
@@ -811,6 +852,11 @@ function doGet(e) {
     $("#notificationsButton").addEventListener("click", requestNotifications);
     $("#enableStudentPermissions").addEventListener("click", requestLaunchPermissions);
     $("#continueWithoutPermissions").addEventListener("click", () => els.ready.close());
+    $("#markMessageSeen").addEventListener("click", () => {
+      state.lastSeenMessageId = els.teacherMessage.dataset.messageId || "";
+      els.teacherMessage.hidden = true;
+      saveState();
+    });
     $("#appsScript").textContent = buildScriptCode();
     $("#copyCode").addEventListener("click", async () => {
       const key = els.teacherKey.value.trim();
@@ -894,14 +940,16 @@ function doGet(e) {
       render();
       showToast("This device has been reset.");
     });
-    els.name.addEventListener("change", () => { if (state.status === "idle") { state.student = els.name.value.trim(); saveState(); } });
+    els.name.addEventListener("change", () => { if (state.status === "idle") { state.student = els.name.value.trim(); saveState(); } loadStudentUpdates(); });
     els.destination.addEventListener("change", () => { if (state.status === "idle") { state.destination = els.destination.value.trim(); saveState(); } });
     window.addEventListener("online", flushQueue);
     setInterval(updateTimer, 1000);
+    setInterval(() => { if (document.visibilityState === "visible") loadStudentUpdates(); }, 5000);
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
     installSharedConfigFromLink();
     render();
     flushQueue();
+    loadStudentUpdates();
     setTimeout(() => { if (!els.ready.open) els.ready.showModal(); }, 250);
   </script>
 </body>
