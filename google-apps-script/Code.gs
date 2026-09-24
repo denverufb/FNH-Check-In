@@ -1,6 +1,6 @@
 // FNH Field Check — Google Apps Script backend
-// Replace this placeholder with the private teacher key already used by the app.
-const TEACHER_KEY = 'REPLACE_WITH_THE_PRIVATE_TEACHER_SYNC_KEY';
+// The teacher dashboard replaces this placeholder with its password when copying the code.
+const TEACHER_KEY = 'REPLACE_WITH_TEACHER_PASSWORD';
 const LOG_SHEET_NAME = 'Field Log';
 const STUDENTS_SHEET_NAME = 'Students';
 const MESSAGES_SHEET_NAME = 'Messages';

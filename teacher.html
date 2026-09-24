@@ -20,11 +20,9 @@
       <h2>Teacher access</h2><p class="helper">Enter the teacher password.</p>
       <input id="password" type="password" placeholder="Password" autocomplete="current-password">
       <button class="btn primary" id="loginButton">Open dashboard</button>
-      <div class="setup" id="keySetup" hidden>
-        <p class="helper">This teacher device also needs the private sync key once.</p>
-        <input id="teacherKeyInput" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Paste private teacher sync key">
-        <button class="btn" id="saveKey">Save private key</button>
-      </div>
+      <p class="helper">The same password works on every authorized teacher device.</p>
+      <button class="btn" id="copyLoginBackend">Copy one-time Apps Script update</button>
+      <p class="helper">Use this once on the main teacher computer before the first password-only login.</p>
     </div>
   </div>
 
@@ -69,7 +67,7 @@
     const WEBHOOK="https://script.google.com/a/macros/fomusic.org/s/AKfycbxkOeHYJAE8eHSrbY339feEpAMXo2641Z-s269oG_jQYowBRhbubyErgbbkPzXIKGCMDw/exec";
     const SCHOOL_CENTER=[38.6298665,-90.4726362];
     let state={};try{state=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")}catch{}
-    let events=[],students=[],messages=[],checkMinutes=30,timerBackendReady=false,timer=null,map=null,markers=null,lastMapSignature="",toastTimer=null,teacherAudioContext=null,knownEventKeys=null;
+    let events=[],students=[],messages=[],checkMinutes=30,timerBackendReady=false,timer=null,map=null,markers=null,lastMapSignature="",toastTimer=null,teacherAudioContext=null,knownEventKeys=null,teacherPassword="";
     const PORTRAITS={
       "Ruth Allen ’28":0,"Maiyah Calleb ’27":1,"Michaela Coles ’28":2,"Tristin Coon ’27":3,
       "Allana Dow ’28":4,"Arwynne Dow ’28":5,"Alana Henry ’28":6,"Paige Ivy ’28":7,
@@ -79,15 +77,16 @@
     const $=(s,p=document)=>p.querySelector(s);
     function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}
     function toast(text){clearTimeout(toastTimer);$("#toast").textContent=text;$("#toast").classList.add("show");toastTimer=setTimeout(()=>$("#toast").classList.remove("show"),3000)}
+    async function copyBackendCode(password){if(!password)return toast("Enter the teacher password first.");try{let code=await fetch("./google-apps-script/Code.gs").then(response=>response.text());code=code.replace("'REPLACE_WITH_TEACHER_PASSWORD'",JSON.stringify(password));await navigator.clipboard.writeText(code);toast("Password-only Apps Script copied.")}catch{toast("Could not copy the backend file.")}}
     function unlockTeacherAudio(){const AudioContextClass=window.AudioContext||window.webkitAudioContext;if(!AudioContextClass)return;if(!teacherAudioContext)teacherAudioContext=new AudioContextClass();if(teacherAudioContext.state==="suspended")teacherAudioContext.resume().catch(()=>{})}
     function playTeacherDing(kind){unlockTeacherAudio();if(!teacherAudioContext||teacherAudioContext.state!=="running")return;const notes=kind==="in"?[1175,880,659]:[740,1175],now=teacherAudioContext.currentTime+.02;notes.forEach((frequency,index)=>{const oscillator=teacherAudioContext.createOscillator(),gain=teacherAudioContext.createGain(),starts=now+index*.16;oscillator.type=kind==="in"?"sine":"triangle";oscillator.frequency.setValueAtTime(frequency,starts);gain.gain.setValueAtTime(.0001,starts);gain.gain.exponentialRampToValueAtTime(.36,starts+.018);gain.gain.exponentialRampToValueAtTime(.0001,starts+.22);oscillator.connect(gain).connect(teacherAudioContext.destination);oscillator.start(starts);oscillator.stop(starts+.24)})}
     function eventKey(event){return `${event.at}|${event.student}|${event.status}`}
     function announceNewStudentUpdates(nextEvents){const nextKeys=new Set(nextEvents.map(eventKey));if(knownEventKeys){const alerts=nextEvents.filter(event=>(event.status==="Checked out"||event.status==="Safely in")&&!knownEventKeys.has(eventKey(event)));alerts.forEach((event,index)=>setTimeout(()=>{const madeItIn=event.status==="Safely in",title=madeItIn?`${event.student} made it in`:`${event.student} checked out`;playTeacherDing(madeItIn?"in":"out");toast(`${title}.`);if("Notification" in window&&Notification.permission==="granted")new Notification(title,{body:madeItIn?"The student reported that they are safely in.":"A new field checkout was received.",icon:"./icon.svg",tag:`fnh-status-${eventKey(event)}`})},index*700))}knownEventKeys=nextKeys}
-    function key(){return state.teacherKey||""}
-    function openDashboard(){unlockTeacherAudio();if(!key()){$("#keySetup").hidden=false;toast("Paste the private sync key once for this teacher device.");return}$("#loginScreen").style.display="none";initMap();poll()}
-    $("#loginButton").onclick=()=>{$("#password").value==="teacher"?openDashboard():toast("Incorrect teacher password.")};
+    function key(){return teacherPassword}
+    async function openDashboard(){const password=$("#password").value.trim();if(!password)return toast("Enter the teacher password.");unlockTeacherAudio();teacherPassword=password;$("#loginButton").disabled=true;$("#loginScreen").style.display="none";initMap();try{await load();poll()}catch{teacherPassword="";$("#loginScreen").style.display="grid";$("#password").select();toast("Incorrect teacher password or the shared Sheet could not be reached.")}finally{$("#loginButton").disabled=false}}
+    $("#loginButton").onclick=openDashboard;
+    $("#copyLoginBackend").onclick=()=>copyBackendCode($("#password").value.trim());
     $("#password").addEventListener("keydown",e=>{if(e.key==="Enter")$("#loginButton").click()});
-    $("#saveKey").onclick=()=>{const value=$("#teacherKeyInput").value.trim();if(!value)return toast("Paste the private teacher key.");state.teacherKey=value;save();openDashboard()};
     function initMap(){if(map)return;map=L.map("map",{minZoom:2,maxZoom:19}).setView(SCHOOL_CENTER,16);L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:'Imagery &copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'}).addTo(map);L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,opacity:.85,attribution:'Labels &copy; Esri'}).addTo(map);markers=L.layerGroup().addTo(map);setTimeout(()=>map.invalidateSize(),100)}
     function visibleEvents(all){let cut=Number(state.teacherResetCount||0);if(all.length<cut)cut=0;state.teacherResetCount=cut;state.lastTeacherTotal=all.length;save();return all.slice(cut)}
     async function load(){const response=await fetch(`${WEBHOOK}?view=teacher&key=${encodeURIComponent(key())}&t=${Date.now()}`,{cache:"no-store"});const data=await response.json();if(data.error)throw new Error(data.error);const nextEvents=visibleEvents(Array.isArray(data.events)?data.events:[]);announceNewStudentUpdates(nextEvents);events=nextEvents;students=Array.isArray(data.students)?data.students:[];messages=Array.isArray(data.messages)?data.messages:[];const sharedMinutes=Math.round(Number(data.checkMinutes));timerBackendReady=Number.isFinite(sharedMinutes)&&sharedMinutes>=1&&sharedMinutes<=180;if(timerBackendReady)checkMinutes=sharedMinutes;render();return data}
@@ -120,7 +119,7 @@
     $("#refresh").onclick=()=>load().then(()=>toast("Dashboard refreshed."));
     $("#centerMap").onclick=()=>{initMap();map.setView(SCHOOL_CENTER,16,{animate:true})};
     $("#resetDashboard").onclick=()=>{if(!confirm("Hide all current activity and start a new dashboard day?"))return;state.teacherResetCount=Number(state.lastTeacherTotal||0);save();events=[];render();toast("Dashboard reset. New updates will appear.")};
-    $("#copyBackend").onclick=async()=>{try{let code=await fetch("./google-apps-script/Code.gs").then(r=>r.text());code=code.replace("'REPLACE_WITH_THE_PRIVATE_TEACHER_SYNC_KEY'",JSON.stringify(key()));await navigator.clipboard.writeText(code);toast("Updated Apps Script copied with this teacher device’s private key.")}catch{toast("Could not copy the backend file.")}};
+    $("#copyBackend").onclick=()=>copyBackendCode(key());
     document.addEventListener("pointerdown",unlockTeacherAudio,{passive:true});
     document.addEventListener("keydown",unlockTeacherAudio);
   </script>
