@@ -537,7 +537,18 @@
       button.setAttribute("aria-busy", "true");
       let location;
       try { location = await getLocation(); }
-      catch (error) { showToast(error.message); button.removeAttribute("aria-busy"); render(); return; }
+      catch (error) {
+        if (step === "out") {
+          showToast(error.message);
+          button.removeAttribute("aria-busy");
+          render();
+          return;
+        }
+        const previous = [...state.events].reverse().find((event) => event.latitude != null && event.longitude != null);
+        location = previous
+          ? { latitude: previous.latitude, longitude: previous.longitude, accuracy: previous.accuracy, mapsUrl: previous.mapsUrl, locationFallback: true }
+          : { locationFallback: true };
+      }
       if (step === "out") {
         state.student = els.name.value.trim();
         state.destination = els.destination.value.trim();
@@ -552,7 +563,7 @@
       state.queue.push(event);
       button.removeAttribute("aria-busy");
       saveState();
-      showToast(`${labelFor(step)} recorded with location.`);
+      showToast(location.locationFallback ? `${labelFor(step)} recorded. Fresh GPS was unavailable, so the update still sent.` : `${labelFor(step)} recorded with location.`);
       await flushQueue();
     }
 
@@ -703,7 +714,7 @@
         if (announce && teacherEventSignature && signature !== teacherEventSignature) announceTeacherUpdate(events);
         teacherEventSignature = signature;
         $("#teacherSource").classList.add("live-label");
-        $("#teacherSource").textContent = `Live · ${events.length} shared update${events.length === 1 ? "" : "s"} · checking every 5 seconds`;
+        $("#teacherSource").textContent = `Live · ${events.length} shared update${events.length === 1 ? "" : "s"} · continuously checking`;
         return events;
       } catch {
         $("#teacherSource").classList.remove("live-label");
@@ -742,7 +753,7 @@
       loadTeacherEvents({ announce: false });
       teacherPollTimer = setInterval(() => {
         if (els.teacher.open && document.visibilityState === "visible") loadTeacherEvents();
-      }, 5000);
+      }, 1000);
     }
 
     function stopTeacherPolling() {
