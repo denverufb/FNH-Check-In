@@ -392,6 +392,7 @@
     let teacherPollTimer = null;
     let studentPollTimer = null;
     let studentUpdateLoading = false;
+    let messageAudioContext = null;
     let teacherLoading = false;
     let teacherEventSignature = "";
 
@@ -464,6 +465,32 @@
     }
 
     let displayedMessageId = "";
+    function unlockMessageAudio() {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      if (!messageAudioContext) messageAudioContext = new AudioContextClass();
+      if (messageAudioContext.state === "suspended") messageAudioContext.resume().catch(() => {});
+    }
+
+    function playMessageSound() {
+      unlockMessageAudio();
+      if (!messageAudioContext || messageAudioContext.state !== "running") return;
+      const start = messageAudioContext.currentTime + .02;
+      [784, 1047, 1319].forEach((frequency, index) => {
+        const oscillator = messageAudioContext.createOscillator();
+        const gain = messageAudioContext.createGain();
+        const begins = start + index * .12;
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(frequency, begins);
+        gain.gain.setValueAtTime(.0001, begins);
+        gain.gain.exponentialRampToValueAtTime(.18, begins + .018);
+        gain.gain.exponentialRampToValueAtTime(.0001, begins + .15);
+        oscillator.connect(gain).connect(messageAudioContext.destination);
+        oscillator.start(begins);
+        oscillator.stop(begins + .17);
+      });
+    }
+
     async function loadStudentUpdates() {
       if (studentUpdateLoading) return;
       studentUpdateLoading = true;
@@ -482,6 +509,8 @@
         if (displayedMessageId !== newest.id) {
           displayedMessageId = newest.id;
           if (!els.teacherMessage.open) els.teacherMessage.showModal();
+          playMessageSound();
+          if (navigator.vibrate) navigator.vibrate([160, 80, 160]);
           if ("Notification" in window && Notification.permission === "granted") new Notification("Message from your teacher", { body: newest.message, icon: "./icon.svg", tag: `fnh-message-${newest.id}` });
         }
       } catch { /* Keep check-in available while the shared service reconnects. */ }
@@ -975,6 +1004,8 @@ function doGet(e) {
     els.name.addEventListener("change", () => { if (state.status === "idle") { state.student = els.name.value.trim(); saveState(); } loadStudentUpdates(); });
     els.destination.addEventListener("change", () => { if (state.status === "idle") { state.destination = els.destination.value.trim(); saveState(); } });
     window.addEventListener("online", flushQueue);
+    document.addEventListener("pointerdown", unlockMessageAudio, { passive: true });
+    document.addEventListener("keydown", unlockMessageAudio);
     setInterval(updateTimer, 1000);
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
     installSharedConfigFromLink();
