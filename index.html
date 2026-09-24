@@ -291,8 +291,9 @@
     <div class="dialog-body">
       <p>Connect this app to a Google Sheet once. Every student tap becomes a timestamped row, and the teacher dashboard checks the Sheet for new activity every five seconds.</p>
       <label>Google Apps Script web app URL
-        <input id="webhookUrl" type="url" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec">
+        <input id="webhookUrl" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec">
       </label>
+      <div class="dialog-actions"><button class="btn" id="pasteWebhook">Paste URL from clipboard</button></div>
       <label style="margin-top:14px">Private teacher sync key
         <input id="teacherKey" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Paste the shared private teacher key" aria-describedby="teacherKeyHelp">
       </label>
@@ -792,6 +793,17 @@ function doGet(e) {
       if (!key) { showToast("Enter a private teacher sync key first."); return; }
       await navigator.clipboard.writeText(key);
       showToast("Private teacher key copied. Share it only with teachers.");
+    });
+    $("#pasteWebhook").addEventListener("click", async () => {
+      try {
+        const text = (await navigator.clipboard.readText()).trim();
+        if (!text) { showToast("Your clipboard is empty. Copy the Google Script URL first."); return; }
+        els.webhook.value = text;
+        showToast("Google Script URL pasted. Press Save connection.");
+      } catch {
+        els.webhook.focus();
+        showToast("Touch and hold inside the URL box, then choose Paste.");
+      }
     });
     $("#copyStudentLink").addEventListener("click", async () => {
       const sheet = els.webhook.value.trim() || state.webhookUrl;
