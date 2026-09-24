@@ -362,7 +362,7 @@
     const CHECK_MS = 30 * 60 * 1000;
     const DEFAULT_WEBHOOK_URL = "https://script.google.com/a/macros/fomusic.org/s/AKfycbxkOeHYJAE8eHSrbY339feEpAMXo2641Z-s269oG_jQYowBRhbubyErgbbkPzXIKGCMDw/exec";
     const STUDENT_RESET_VERSION = "2026-09-24-all-students-1";
-    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: DEFAULT_WEBHOOK_URL, teacherKey: "", teacherResetAt: 0, studentResetVersion: "" };
+    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: DEFAULT_WEBHOOK_URL, teacherKey: "", teacherResetAt: 0, teacherResetCount: 0, lastTeacherTotal: 0, studentResetVersion: "" };
     let state = loadState();
     prepareSharedConnectionAndStudentReset();
     ensureTeacherKey();
@@ -613,8 +613,7 @@
     }
 
     function renderTeacherEvents(events) {
-      const cutoff = Number(state.teacherResetAt || 0);
-      const sorted = [...events].filter((event) => new Date(event.at).getTime() > cutoff).sort((a, b) => new Date(b.at) - new Date(a.at));
+      const sorted = [...events].reverse();
       const latestByStudent = new Map();
       sorted.forEach((event) => { if (!latestByStudent.has(event.student)) latestByStudent.set(event.student, event); });
       const students = [...new Set(sorted.map((event) => event.student).filter(Boolean))];
@@ -678,12 +677,12 @@
     }
 
     function teacherSignature(events) {
-      const newest = [...events].sort((a, b) => new Date(b.at) - new Date(a.at))[0];
+      const newest = events[events.length - 1];
       return newest ? `${events.length}|${newest.student}|${newest.status}|${newest.at}` : "empty";
     }
 
     function announceTeacherUpdate(events) {
-      const newest = [...events].sort((a, b) => new Date(b.at) - new Date(a.at))[0];
+      const newest = events[events.length - 1];
       if (!newest) return;
       showToast(`New update: ${newest.student} — ${newest.status}`);
       if ("Notification" in window && Notification.permission === "granted") {
@@ -707,8 +706,14 @@
         if (!response.ok) throw new Error("Unable to load");
         const data = await response.json();
         if (data.error) throw new Error(data.error);
-        const cutoff = Number(state.teacherResetAt || 0);
-        const events = (Array.isArray(data.events) ? data.events : []).filter((event) => new Date(event.at).getTime() > cutoff);
+        const allEvents = Array.isArray(data.events) ? data.events : [];
+        let resetCount = Number(state.teacherResetCount || 0);
+        if (allEvents.length < resetCount) resetCount = 0;
+        state.teacherResetAt = 0;
+        state.teacherResetCount = resetCount;
+        state.lastTeacherTotal = allEvents.length;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        const events = allEvents.slice(resetCount);
         const signature = teacherSignature(events);
         if (signature !== teacherEventSignature) renderTeacherEvents(events);
         if (announce && teacherEventSignature && signature !== teacherEventSignature) announceTeacherUpdate(events);
@@ -732,7 +737,8 @@
       button.disabled = true;
       button.textContent = "Clearing…";
       try {
-        state.teacherResetAt = Date.now();
+        state.teacherResetAt = 0;
+        state.teacherResetCount = Number(state.lastTeacherTotal || 0);
         saveState();
         teacherEventSignature = "empty";
         renderTeacherEvents([]);
@@ -748,16 +754,18 @@
     }
 
     function startTeacherPolling() {
-      clearInterval(teacherPollTimer);
+      clearTimeout(teacherPollTimer);
       teacherEventSignature = "";
-      loadTeacherEvents({ announce: false });
-      teacherPollTimer = setInterval(() => {
-        if (els.teacher.open && document.visibilityState === "visible") loadTeacherEvents();
-      }, 1000);
+      const poll = async () => {
+        if (!els.teacher.open) return;
+        if (document.visibilityState === "visible") await loadTeacherEvents();
+        teacherPollTimer = setTimeout(poll, 200);
+      };
+      poll();
     }
 
     function stopTeacherPolling() {
-      clearInterval(teacherPollTimer);
+      clearTimeout(teacherPollTimer);
       teacherPollTimer = null;
     }
 
