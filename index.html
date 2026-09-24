@@ -359,7 +359,7 @@
   <script>
     const STORAGE_KEY = "fnh-field-check-v1";
     const CHECK_MS = 30 * 60 * 1000;
-    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: "", teacherKey: "" };
+    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: "", teacherKey: "", teacherResetAt: 0 };
     let state = loadState();
     ensureTeacherKey();
     let toastTimer;
@@ -586,7 +586,8 @@
     }
 
     function renderTeacherEvents(events) {
-      const sorted = [...events].sort((a, b) => new Date(b.at) - new Date(a.at));
+      const cutoff = Number(state.teacherResetAt || 0);
+      const sorted = [...events].filter((event) => new Date(event.at).getTime() > cutoff).sort((a, b) => new Date(b.at) - new Date(a.at));
       const latestByStudent = new Map();
       sorted.forEach((event) => { if (!latestByStudent.has(event.student)) latestByStudent.set(event.student, event); });
       const students = [...new Set(sorted.map((event) => event.student).filter(Boolean))];
@@ -679,7 +680,8 @@
         if (!response.ok) throw new Error("Unable to load");
         const data = await response.json();
         if (data.error) throw new Error(data.error);
-        const events = Array.isArray(data.events) ? data.events : [];
+        const cutoff = Number(state.teacherResetAt || 0);
+        const events = (Array.isArray(data.events) ? data.events : []).filter((event) => new Date(event.at).getTime() > cutoff);
         const signature = teacherSignature(events);
         if (signature !== teacherEventSignature) renderTeacherEvents(events);
         if (announce && teacherEventSignature && signature !== teacherEventSignature) announceTeacherUpdate(events);
@@ -698,32 +700,20 @@
     }
 
     async function clearTeacherActivity() {
-      if (!state.webhookUrl) { showToast("Connect the shared Google Sheet first."); return; }
-      if (!confirm("Delete all teacher activity for today? This cannot be undone. The Sheet headers and app setup will be kept.")) return;
+      if (!confirm("Clear every student from this teacher dashboard and start a new day? New updates will appear normally.")) return;
       const button = $("#clearTeacherActivity");
       button.disabled = true;
       button.textContent = "Clearing…";
       try {
-        await fetch(state.webhookUrl, {
-          method: "POST",
-          mode: "no-cors",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({ action: "reset", teacherKey: state.teacherKey })
-        });
-        state.events = [];
-        state.queue = [];
+        state.teacherResetAt = Date.now();
         saveState();
-        await new Promise((resolve) => setTimeout(resolve, 1400));
-        teacherEventSignature = "";
-        let events = await loadTeacherEvents({ announce: false });
-        for (let attempt = 0; Array.isArray(events) && events.length && attempt < 4; attempt++) {
-          await new Promise((resolve) => setTimeout(resolve, 1500));
-          teacherEventSignature = "";
-          events = await loadTeacherEvents({ announce: false });
-        }
-        showToast(Array.isArray(events) && events.length === 0 ? "Teacher activity cleared. Ready for a new day." : "The shared Sheet did not clear. Open setup and copy the newest Apps Script once.");
+        teacherEventSignature = "empty";
+        renderTeacherEvents([]);
+        $("#teacherSource").classList.remove("live-label");
+        $("#teacherSource").textContent = "Dashboard reset · waiting for new student updates";
+        showToast("Teacher dashboard cleared. New student updates will appear here.");
       } catch {
-        showToast("The activity could not be cleared. Check the Sheet connection.");
+        showToast("The dashboard could not be reset on this device.");
       } finally {
         button.disabled = false;
         button.textContent = "End-of-day reset";
