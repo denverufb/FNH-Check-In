@@ -1,0 +1,18 @@
+{
+  "name": "FNH Field Check",
+  "short_name": "Field Check",
+  "description": "Student field check-out and safe return tracker.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#071a16",
+  "theme_color": "#071a16",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#071a16">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Field Check">
+  <meta name="description" content="A simple student field check-out and safe return tracker for FNH.">
+  <title>FNH Field Check</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23071a16'/%3E%3Cpath d='M32 9C20 18 14 27 16 38c2 11 9 17 16 18 8-1 15-8 16-18 1-11-5-20-16-29Z' fill='%23bdf56c'/%3E%3Cpath d='M32 20v26M32 31l-8-5M32 37l9-7' stroke='%23071a16' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f5f8ed;
+      --muted: #9eb4a9;
+      --deep: #071a16;
+      --panel: #0d2720;
+      --panel-2: #12352a;
+      --line: rgba(216, 244, 225, .13);
+      --lime: #bdf56c;
+      --lime-dark: #20320a;
+      --orange: #ff7849;
+      --sky: #81d9e9;
+      --shadow: 0 24px 60px rgba(0, 0, 0, .32);
+      font-family: ui-rounded, "SF Pro Rounded", "Avenir Next", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { min-height: 100%; background: var(--deep); }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 100% 0%, rgba(129, 217, 233, .12), transparent 34rem),
+        radial-gradient(circle at 0% 38%, rgba(189, 245, 108, .09), transparent 28rem),
+        var(--deep);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+    .app { width: min(100%, 1160px); margin: 0 auto; padding: max(18px, env(safe-area-inset-top)) 18px max(28px, env(safe-area-inset-bottom)); }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 22px; }
+    .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+    .brand-mark { width: 42px; height: 42px; flex: 0 0 auto; filter: drop-shadow(0 8px 18px rgba(0,0,0,.3)); }
+    .brand h1 { font-size: 1.05rem; line-height: 1.1; margin: 0; letter-spacing: -.02em; }
+    .brand p { margin: 3px 0 0; color: var(--muted); font-size: .78rem; }
+    .icon-button { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); background: rgba(255,255,255,.04); cursor: pointer; }
+    .icon-button:active { transform: scale(.96); }
+
+    .layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(290px, .75fr); gap: 18px; align-items: start; }
+    .card { background: linear-gradient(160deg, rgba(18, 53, 42, .96), rgba(10, 35, 28, .96)); border: 1px solid var(--line); border-radius: 28px; box-shadow: var(--shadow); overflow: hidden; }
+    .main-card { padding: 26px; min-height: 620px; display: flex; flex-direction: column; }
+    .eyebrow { margin: 0 0 8px; color: var(--lime); font-size: .74rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h2 { margin: 0; font-size: clamp(2rem, 7vw, 4.6rem); line-height: .94; letter-spacing: -.065em; max-width: 720px; }
+    .lede { margin: 14px 0 26px; max-width: 640px; color: var(--muted); font-size: 1rem; line-height: 1.55; }
+
+    .identity { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 22px; }
+    label { display: block; color: var(--muted); font-size: .82rem; font-weight: 700; }
+    input, select, textarea {
+      width: 100%; margin-top: 7px; border: 1px solid var(--line); border-radius: 15px; background: rgba(1, 14, 11, .55); color: var(--ink); padding: 14px 15px; outline: none; min-height: 51px;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--lime); box-shadow: 0 0 0 3px rgba(189, 245, 108, .12); }
+    input::placeholder, textarea::placeholder { color: #708b7d; }
+
+    .status-strip { display: flex; align-items: center; gap: 11px; padding: 14px; margin-bottom: 17px; border: 1px solid var(--line); border-radius: 18px; background: rgba(0,0,0,.13); }
+    .status-dot { width: 11px; height: 11px; border-radius: 50%; background: #6f8278; box-shadow: 0 0 0 5px rgba(111,130,120,.11); }
+    .status-dot.live { background: var(--orange); box-shadow: 0 0 0 5px rgba(255,120,73,.12); animation: pulse 2s infinite; }
+    .status-dot.done { background: var(--lime); box-shadow: 0 0 0 5px rgba(189,245,108,.12); }
+    .status-copy { min-width: 0; }
+    .status-copy strong { display: block; font-size: .95rem; }
+    .status-copy span { color: var(--muted); font-size: .8rem; }
+    .timer { margin-left: auto; color: var(--lime); font-variant-numeric: tabular-nums; font-weight: 850; font-size: 1.05rem; white-space: nowrap; }
+    @keyframes pulse { 50% { box-shadow: 0 0 0 10px rgba(255,120,73,0); } }
+
+    .actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: auto; }
+    .action {
+      min-height: 100px; padding: 17px; border-radius: 20px; border: 1px solid var(--line); color: var(--ink); background: rgba(255,255,255,.045); text-align: left; cursor: pointer; transition: transform .18s ease, border-color .18s ease, background .18s ease; position: relative; overflow: hidden;
+    }
+    .action:disabled { opacity: .38; cursor: not-allowed; }
+    .action:not(:disabled):active { transform: scale(.98); }
+    .action.primary { color: var(--lime-dark); background: var(--lime); border-color: transparent; }
+    .action.current { border-color: var(--orange); background: rgba(255,120,73,.1); }
+    .action .num { display: block; font-size: .7rem; letter-spacing: .12em; font-weight: 900; opacity: .7; }
+    .action strong { display: block; margin-top: 8px; font-size: 1.15rem; line-height: 1.05; }
+    .action small { display: block; margin-top: 6px; opacity: .7; font-size: .74rem; }
+
+    .side { display: grid; gap: 18px; }
+    .side-card { padding: 22px; }
+    .side h3 { margin: 0 0 15px; font-size: 1rem; }
+    .timeline { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; }
+    .timeline li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; min-height: 53px; color: var(--muted); font-size: .84rem; }
+    .timeline li::before { content: ""; width: 9px; height: 9px; margin: 4px auto 0; border-radius: 50%; border: 2px solid #547064; background: var(--panel); z-index: 1; }
+    .timeline li:not(:last-child) { background: linear-gradient(#547064, #547064) 12px 14px / 1px calc(100% - 6px) no-repeat; }
+    .timeline li.complete { color: var(--ink); }
+    .timeline li.complete::before { background: var(--lime); border-color: var(--lime); }
+    .timeline time { display: block; color: var(--muted); font-size: .72rem; margin-top: 2px; }
+    .notice { display: flex; gap: 11px; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+    .notice svg { flex: 0 0 auto; color: var(--sky); }
+    .text-button { border: 0; padding: 0; background: none; color: var(--lime); font-weight: 800; cursor: pointer; }
+
+    dialog { width: min(92vw, 560px); max-height: 88vh; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); padding: 0; }
+    dialog::backdrop { background: rgba(0, 8, 6, .76); backdrop-filter: blur(8px); }
+    .dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 20px 22px; border-bottom: 1px solid var(--line); }
+    .dialog-head h3 { margin: 0; }
+    .dialog-body { padding: 22px; overflow: auto; }
+    .dialog-body p { color: var(--muted); line-height: 1.5; }
+    .dialog-actions { display: flex; gap: 10px; margin-top: 18px; }
+    .btn { min-height: 48px; border: 1px solid var(--line); border-radius: 14px; padding: 0 17px; background: rgba(255,255,255,.05); color: var(--ink); font-weight: 800; cursor: pointer; }
+    .btn.primary { background: var(--lime); color: var(--lime-dark); border-color: transparent; }
+    .btn.danger { color: #ffb09a; }
+    .step-list { display: grid; gap: 12px; margin: 18px 0; }
+    .setup-step { padding: 15px; border: 1px solid var(--line); border-radius: 16px; background: rgba(0,0,0,.12); }
+    .setup-step strong { display: block; margin-bottom: 4px; }
+    .setup-step span { color: var(--muted); font-size: .82rem; line-height: 1.45; }
+    .code-wrap { position: relative; }
+    pre { max-height: 190px; overflow: auto; white-space: pre; padding: 15px; border-radius: 15px; background: #03100d; color: #dff9c0; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .copy { position: absolute; top: 9px; right: 9px; font-size: .72rem; min-height: 34px; padding: 0 10px; }
+    .toast { position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom)); transform: translate(-50%, 18px); width: min(calc(100% - 36px), 440px); padding: 14px 17px; border-radius: 15px; background: #f5f8ed; color: #10231d; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: .25s ease; z-index: 10; font-weight: 750; text-align: center; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    .helper { margin: 8px 0 0; color: var(--muted); font-size: .75rem; }
+    .danger-zone { border-top: 1px solid var(--line); margin-top: 22px; padding-top: 18px; }
+    .teacher-entry { display: flex; justify-content: center; padding: 24px 0 4px; }
+    .teacher-link { display: inline-flex; align-items: center; gap: 9px; border: 0; background: none; color: var(--muted); font-weight: 800; cursor: pointer; padding: 12px 16px; }
+    .teacher-link:hover { color: var(--ink); }
+    .location-line { display: flex; align-items: center; gap: 6px; margin-top: 5px; color: var(--sky); font-size: .75rem; font-weight: 750; }
+    .teacher-dialog { width: min(94vw, 980px); }
+    .teacher-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+    .summary-box { padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: rgba(0,0,0,.13); }
+    .summary-box strong { display: block; font-size: 1.35rem; color: var(--lime); }
+    .summary-box span { color: var(--muted); font-size: .76rem; }
+    .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 16px; }
+    table { width: 100%; border-collapse: collapse; min-width: 720px; }
+    th, td { padding: 13px 14px; text-align: left; border-bottom: 1px solid var(--line); font-size: .82rem; vertical-align: top; }
+    th { position: sticky; top: 0; color: var(--muted); background: #0d2720; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    td strong { color: var(--ink); }
+    .map-link { color: var(--sky); font-weight: 800; text-decoration: none; }
+    .empty-log { padding: 36px 18px; text-align: center; color: var(--muted); }
+    .loading-label { color: var(--muted); font-size: .8rem; margin: 0 0 12px; }
+    .live-label { display: inline-flex; align-items: center; gap: 7px; }
+    .live-label::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 5px rgba(189,245,108,.1); }
+    .permission-list { display: grid; gap: 10px; margin: 18px 0; }
+    .permission-row { display: grid; grid-template-columns: 38px 1fr; gap: 12px; align-items: center; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: rgba(0,0,0,.12); }
+    .permission-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; background: rgba(129,217,233,.1); color: var(--sky); }
+    .permission-row strong { display: block; }
+    .permission-row span { display: block; margin-top: 3px; color: var(--muted); font-size: .78rem; line-height: 1.35; }
+
+    @media (max-width: 780px) {
+      .app { padding-left: 12px; padding-right: 12px; }
+      .layout { grid-template-columns: 1fr; }
+      .main-card { min-height: calc(100dvh - 105px); padding: 22px 18px 18px; border-radius: 25px; }
+      h2 { font-size: clamp(2.5rem, 13.5vw, 4.2rem); }
+      .identity { grid-template-columns: 1fr; }
+      .actions { gap: 9px; }
+      .action { min-height: 92px; padding: 15px; }
+      .side { grid-template-columns: 1fr; }
+      .teacher-summary { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 390px) {
+      .actions { grid-template-columns: 1fr; }
+      .main-card { min-height: auto; }
+      .action { min-height: 76px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand-mark" src="./icon.svg" alt="">
+        <div><h1>FNH Field Check</h1><p id="syncLabel">Ready on this device</p></div>
+      </div>
+      <button class="icon-button" id="settingsButton" aria-label="Open app setup">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.96 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.08A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88L4.2 7l2.83-2.83.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 10 3.01V3h4v.08a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.96 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </header>
+
+    <section class="layout">
+      <article class="card main-card">
+        <p class="eyebrow">Student check-in</p>
+        <h2 id="headline">Heading outside?</h2>
+        <p class="lede" id="lede">Tell your teacher before you leave. The app will start your 30-minute safety timer.</p>
+
+        <div class="identity" id="identityFields">
+          <label>Your name
+            <select id="studentName" aria-label="Select your name">
+              <option value="">Select your name</option>
+              <option>Davis Johnson ’28</option>
+              <option>Taylor Lee ’27</option>
+              <option>Valentina Lizarazo ’28</option>
+              <option>Avenly Lockhart ’28</option>
+              <option>Allie Medford ’28</option>
+              <option>Eli Morse ’27</option>
+              <option>Peyton Webster ’27</option>
+              <option>Khanye Williams ’27</option>
+            </select>
+          </label>
+          <label>Where are you going?
+            <input id="destination" placeholder="Trail, plot, stream…">
+          </label>
+        </div>
+
+        <div class="status-strip" aria-live="polite">
+          <span class="status-dot" id="statusDot"></span>
+          <div class="status-copy"><strong id="statusTitle">Not checked out</strong><span id="statusDetail">No active field trip</span></div>
+          <div class="timer" id="timer">30:00</div>
+        </div>
+        <div class="location-line" id="locationLine" hidden>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg>
+          <span id="locationText">Location captured</span>
+        </div>
+
+        <div class="actions" aria-label="Field status actions">
+          <button class="action primary" data-step="out"><span class="num">STEP 01</span><strong>I’m going out</strong><small>Notifies teacher + starts timer</small></button>
+          <button class="action" data-step="safe" disabled><span class="num">STEP 02</span><strong>I’m safe</strong><small>30-minute check</small></button>
+          <button class="action" data-step="returning" disabled><span class="num">STEP 03</span><strong>Heading back</strong><small>Let your teacher know</small></button>
+          <button class="action" data-step="in" disabled><span class="num">STEP 04</span><strong>I made it in</strong><small>Closes your field trip</small></button>
+        </div>
+      </article>
+
+      <aside class="side">
+        <section class="card side-card">
+          <h3>Today’s trail</h3>
+          <ol class="timeline" id="timeline">
+            <li data-timeline="out"><div><strong>Checked out</strong><time>Waiting</time></div></li>
+            <li data-timeline="safe"><div><strong>Safety check</strong><time>Due after 30 minutes</time></div></li>
+            <li data-timeline="returning"><div><strong>Heading back</strong><time>Waiting</time></div></li>
+            <li data-timeline="in"><div><strong>Safely in</strong><time>Waiting</time></div></li>
+          </ol>
+        </section>
+
+        <section class="card side-card">
+          <div class="notice">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v6M12 7.2v.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <div><strong>Keep the app handy.</strong><br>For the best reminder experience on iPhone, add it to your Home Screen and allow notifications. <button class="text-button" id="installHelp">Show me how</button></div>
+          </div>
+        </section>
+      </aside>
+    </section>
+    <footer class="teacher-entry">
+      <button class="teacher-link" id="teacherButton">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 14a5 5 0 1 0 0-10 5 5 0 0 0 0 10ZM4 21a8 8 0 0 1 16 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Teacher view
+      </button>
+    </footer>
+  </main>
+
+  <dialog id="studentReadyDialog">
+    <div class="dialog-head"><h3>Get ready for field check</h3></div>
+    <div class="dialog-body">
+      <p>Allow both services so each check-in includes your location and the 30-minute reminder can reach you.</p>
+      <div class="permission-list">
+        <div class="permission-row">
+          <div class="permission-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg></div>
+          <div><strong>Location</strong><span id="launchLocationStatus">Needed for every status update</span></div>
+        </div>
+        <div class="permission-row">
+          <div class="permission-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div><strong>Notifications</strong><span id="launchNotificationStatus">Needed for the 30-minute reminder</span></div>
+        </div>
+      </div>
+      <div class="dialog-actions"><button class="btn primary" id="enableStudentPermissions">Enable and continue</button><button class="btn" id="continueWithoutPermissions">Continue for now</button></div>
+      <p class="helper">If a permission was previously blocked, enable it in your iPhone settings and reopen the app.</p>
+    </div>
+  </dialog>
+
+  <dialog id="settingsDialog">
+    <div class="dialog-head"><h3>Teacher setup</h3><button class="icon-button" data-close aria-label="Close">×</button></div>
+    <div class="dialog-body">
+      <p>Connect this app to a Google Sheet once. Every student tap becomes a timestamped row, and the teacher dashboard checks the Sheet for new activity every five seconds.</p>
+      <label>Google Apps Script web app URL
+        <input id="webhookUrl" type="url" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec">
+      </label>
+      <label style="margin-top:14px">Private teacher sync key
+        <input id="teacherKey" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Paste the shared private teacher key" aria-describedby="teacherKeyHelp">
+      </label>
+      <p class="helper" id="teacherKeyHelp">For another teacher’s phone or computer, paste the exact same private key used by the main teacher. Keep it private—it is never added to the student link.</p>
+      <div class="dialog-actions"><button class="btn primary" id="saveSettings">Save connection</button><button class="btn" id="testConnection">Send test</button></div>
+      <div class="dialog-actions"><button class="btn" id="copyTeacherKey">Copy private key</button><button class="btn" id="copyStudentLink">Copy student setup link</button></div>
+      <p class="helper" id="connectionStatus">No Google Sheet connection saved yet. Student actions are safely queued on this device.</p>
+
+      <div class="step-list">
+        <div class="setup-step"><strong>1 · Create a Google Sheet</strong><span>Name the first tab <b>Field Log</b>.</span></div>
+        <div class="setup-step"><strong>2 · Open Extensions → Apps Script</strong><span>Paste the code below, save it, then deploy as a web app that anyone with the link can access.</span></div>
+        <div class="setup-step"><strong>3 · Paste the web app URL above</strong><span>Save it, then copy the student setup link and send that link to the students. Their phones will connect automatically.</span></div>
+      </div>
+
+      <div class="code-wrap"><button class="btn copy" id="copyCode">Copy code</button><pre id="appsScript"></pre></div>
+      <div class="danger-zone">
+        <button class="btn" id="notificationsButton">Enable student reminders</button>
+        <button class="btn danger" id="resetButton">Reset this device</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="installDialog">
+    <div class="dialog-head"><h3>Add to iPhone Home Screen</h3><button class="icon-button" data-close aria-label="Close">×</button></div>
+    <div class="dialog-body">
+      <div class="step-list">
+        <div class="setup-step"><strong>1 · Open this page in Safari</strong><span>Home Screen apps must be added from Safari on iPhone.</span></div>
+        <div class="setup-step"><strong>2 · Tap the Share button</strong><span>It looks like a square with an arrow pointing up.</span></div>
+        <div class="setup-step"><strong>3 · Tap “Add to Home Screen”</strong><span>Keep the name “Field Check,” then tap Add.</span></div>
+        <div class="setup-step"><strong>4 · Open it once and allow notifications</strong><span>The 30-minute alert works best when the app remains open. Full background alerts require a school push-notification service.</span></div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="teacherLoginDialog">
+    <div class="dialog-head"><h3>Teacher access</h3><button class="icon-button" data-close aria-label="Close">×</button></div>
+    <div class="dialog-body">
+      <p>Enter the teacher password to view student activity.</p>
+      <label>Password
+        <input id="teacherPassword" type="password" autocomplete="current-password" placeholder="Password">
+      </label>
+      <div class="dialog-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="teacherLogin">Open teacher view</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="teacherDialog" class="teacher-dialog">
+    <div class="dialog-head"><h3>Teacher activity</h3><button class="icon-button" data-close aria-label="Close">×</button></div>
+    <div class="dialog-body">
+      <div class="teacher-summary">
+        <div class="summary-box"><strong id="studentCount">0</strong><span>Students recorded</span></div>
+        <div class="summary-box"><strong id="outsideCount">0</strong><span>Currently outside</span></div>
+        <div class="summary-box"><strong id="eventCount">0</strong><span>Total updates</span></div>
+      </div>
+      <p class="loading-label" id="teacherSource">Showing activity saved on this device.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Student</th><th>Update</th><th>Time</th><th>Destination</th><th>Location</th></tr></thead>
+          <tbody id="teacherRows"></tbody>
+        </table>
+        <div class="empty-log" id="emptyLog">No student activity has been recorded yet.</div>
+      </div>
+      <div class="dialog-actions"><button class="btn" id="refreshTeacher">Refresh now</button><button class="btn" id="enableTeacherAlerts">Enable teacher alerts</button><button class="btn danger" id="clearTeacherActivity">End-of-day reset</button></div>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const STORAGE_KEY = "fnh-field-check-v1";
+    const CHECK_MS = 30 * 60 * 1000;
+    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: "", teacherKey: "" };
+    let state = loadState();
+    ensureTeacherKey();
+    let toastTimer;
+    let teacherPollTimer = null;
+    let teacherLoading = false;
+    let teacherEventSignature = "";
+
+    const $ = (selector, parent = document) => parent.querySelector(selector);
+    const $$ = (selector, parent = document) => [...parent.querySelectorAll(selector)];
+    const els = {
+      name: $("#studentName"), destination: $("#destination"), dot: $("#statusDot"), statusTitle: $("#statusTitle"), statusDetail: $("#statusDetail"),
+      timer: $("#timer"), headline: $("#headline"), lede: $("#lede"), timeline: $("#timeline"), toast: $("#toast"), sync: $("#syncLabel"),
+      settings: $("#settingsDialog"), install: $("#installDialog"), webhook: $("#webhookUrl"), teacherKey: $("#teacherKey"),
+      connection: $("#connectionStatus"), teacherLogin: $("#teacherLoginDialog"), teacher: $("#teacherDialog"), teacherRows: $("#teacherRows"),
+      locationLine: $("#locationLine"), locationText: $("#locationText"), ready: $("#studentReadyDialog")
+    };
+
+    function loadState() {
+      try { return { ...emptyState, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") }; }
+      catch { return { ...emptyState }; }
+    }
+
+    function ensureTeacherKey() {
+      if (state.teacherKey) return;
+      state.teacherKey = crypto.randomUUID ? crypto.randomUUID().replaceAll("-", "") : `${Date.now()}${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function installSharedConfigFromLink() {
+      if (!location.hash.startsWith("#sheet=")) return;
+      const params = new URLSearchParams(location.hash.slice(1));
+      const sheet = params.get("sheet") || "";
+      if (!/^https:\/\/script\.google\.com\//.test(sheet)) return;
+      state.webhookUrl = sheet;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      history.replaceState(null, "", location.pathname + location.search);
+      setTimeout(() => showToast("This phone is connected to the class field log."), 250);
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      render();
+    }
+
+    function formatTime(value) {
+      if (!value) return "Waiting";
+      return new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" }).format(new Date(value));
+    }
+
+    function labelFor(step) { return ({ out: "Checked out", safe: "Safety check", returning: "Heading back", in: "Safely in", test: "Connection test" })[step] || step; }
+
+    function render() {
+      els.name.value = state.student || "";
+      els.destination.value = state.destination || "";
+      if (document.activeElement !== els.webhook) els.webhook.value = state.webhookUrl || "";
+      if (document.activeElement !== els.teacherKey) els.teacherKey.value = state.teacherKey || "";
+      const order = ["out", "safe", "returning", "in"];
+      const activeIndex = ({ idle: 0, out: 1, safe: 2, returning: 3, in: 0 })[state.status] || 0;
+      $$(".action").forEach((button, index) => {
+        button.disabled = index !== activeIndex;
+        button.classList.toggle("primary", index === activeIndex);
+        button.classList.toggle("current", index === activeIndex && index > 0 && state.status !== "in");
+      });
+      if (state.status === "idle") {
+        $(".action[data-step='out']").disabled = false;
+        els.dot.className = "status-dot";
+        els.statusTitle.textContent = "Not checked out";
+        els.statusDetail.textContent = "No active field trip";
+        els.headline.textContent = "Heading outside?";
+        els.lede.textContent = "Tell your teacher before you leave. The app will start your 30-minute safety timer.";
+      } else if (state.status === "in") {
+        els.dot.className = "status-dot done";
+        els.statusTitle.textContent = "Safely back in";
+        els.statusDetail.textContent = `${state.student} · ${state.destination}`;
+        els.headline.textContent = "You’re all checked in.";
+        els.lede.textContent = "Your field trip is complete. You can start another trip whenever you head out again.";
+      } else {
+        els.dot.className = "status-dot live";
+        els.statusTitle.textContent = labelFor(state.status);
+        els.statusDetail.textContent = `${state.student} · ${state.destination}`;
+        els.headline.textContent = state.status === "out" ? "Stay safe out there." : state.status === "safe" ? "Thanks for checking in." : "See you back inside.";
+        els.lede.textContent = state.status === "out" ? "Your teacher has your destination. Tap “I’m safe” when the timer reaches zero." : state.status === "safe" ? "Your safety check is recorded. Tap “Heading back” when you start your return." : "Your teacher knows you’re on your way. Tap once more when you are safely inside.";
+      }
+      const actionLabels = {
+        out: state.status === "in" ? "Start another trip" : "I’m going out",
+        safe: "I’m safe",
+        returning: "Heading back",
+        in: "I made it in"
+      };
+      $$(".action").forEach((button) => { $("strong", button).textContent = actionLabels[button.dataset.step]; });
+      $(".action[data-step='out'] small").textContent = "Captures location + starts timer";
+
+      const lastLocation = [...state.events].reverse().find((event) => event.latitude != null);
+      els.locationLine.hidden = !lastLocation;
+      if (lastLocation) els.locationText.textContent = `Last location captured at ${formatTime(lastLocation.at)}`;
+
+      $$("[data-timeline]").forEach((item) => {
+        const event = [...state.events].reverse().find((entry) => entry.step === item.dataset.timeline && (!state.tripId || entry.tripId === state.tripId));
+        item.classList.toggle("complete", Boolean(event));
+        $("time", item).textContent = event ? formatTime(event.at) : item.dataset.timeline === "safe" ? "Due after 30 minutes" : "Waiting";
+      });
+
+      els.sync.textContent = state.webhookUrl ? (state.queue.length ? `${state.queue.length} update${state.queue.length === 1 ? "" : "s"} waiting to sync` : "Connected to Google Sheet") : (state.queue.length ? `${state.queue.length} update${state.queue.length === 1 ? "" : "s"} saved on this device` : "Ready on this device");
+      els.connection.textContent = state.webhookUrl ? `Connected. ${state.queue.length ? state.queue.length + " update(s) waiting to sync." : "All updates are synced."}` : "No Google Sheet connection saved yet. Student actions are safely queued on this device.";
+      updateTimer();
+    }
+
+    function updateTimer() {
+      if (!state.dueAt || state.status === "idle" || state.status === "in") { els.timer.textContent = state.status === "in" ? "DONE" : "30:00"; return; }
+      const remaining = state.dueAt - Date.now();
+      if (remaining <= 0) {
+        els.timer.textContent = "CHECK IN";
+        els.timer.style.color = "var(--orange)";
+        if (!state.reminderSent) {
+          state.reminderSent = true;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          notifyStudent();
+        }
+        return;
+      }
+      els.timer.style.color = "var(--lime)";
+      const mins = Math.floor(remaining / 60000);
+      const secs = Math.floor((remaining % 60000) / 1000);
+      els.timer.textContent = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    }
+
+    function notifyStudent() {
+      showToast("30-minute safety check due — please tap “I’m safe.”");
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification("FNH safety check", { body: "Please open Field Check and tap “I’m safe.”", icon: "./icon.svg", tag: "fnh-check" });
+      }
+      if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+    }
+
+    function showToast(message) {
+      clearTimeout(toastTimer);
+      els.toast.textContent = message;
+      els.toast.classList.add("show");
+      toastTimer = setTimeout(() => els.toast.classList.remove("show"), 3200);
+    }
+
+    function getLocation() {
+      return new Promise((resolve, reject) => {
+        if (!("geolocation" in navigator)) { reject(new Error("Location is not available on this device.")); return; }
+        navigator.geolocation.getCurrentPosition(
+          (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: Math.round(position.coords.accuracy), mapsUrl: `https://maps.google.com/?q=${position.coords.latitude},${position.coords.longitude}` }),
+          () => reject(new Error("Location is required. Allow location access, then press the button again.")),
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+      });
+    }
+
+    async function completeStep(step, button) {
+      const name = els.name.value.trim();
+      const destination = els.destination.value.trim();
+      if (step === "out" && (!name || !destination)) { showToast("Select your name and add your destination first."); (!name ? els.name : els.destination).focus(); return; }
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+      let location;
+      try { location = await getLocation(); }
+      catch (error) { showToast(error.message); button.removeAttribute("aria-busy"); render(); return; }
+      if (step === "out") {
+        state.student = els.name.value.trim();
+        state.destination = els.destination.value.trim();
+        state.startedAt = new Date().toISOString();
+        state.dueAt = Date.now() + CHECK_MS;
+        state.reminderSent = false;
+        state.tripId = String(Date.now());
+      }
+      const event = { id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), tripId: state.tripId, step, status: labelFor(step), student: state.student, destination: state.destination, at: new Date().toISOString(), deviceTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, ...location };
+      state.status = step;
+      state.events.push(event);
+      state.queue.push(event);
+      button.removeAttribute("aria-busy");
+      saveState();
+      showToast(`${labelFor(step)} recorded with location.`);
+      await flushQueue();
+    }
+
+    async function flushQueue() {
+      if (!state.webhookUrl || !state.queue.length || !navigator.onLine) return;
+      const remaining = [];
+      for (const event of state.queue) {
+        try {
+          await fetch(state.webhookUrl, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(event) });
+        } catch { remaining.push(event); }
+      }
+      state.queue = remaining;
+      saveState();
+      if (!remaining.length) showToast("Update sent to the Google Sheet.");
+    }
+
+    async function requestNotifications() {
+      if (!("Notification" in window)) { showToast("Notifications are not available in this browser."); return; }
+      try {
+        const permission = await Notification.requestPermission();
+        showToast(permission === "granted" ? "Student reminders are enabled." : "Notifications were not enabled.");
+      } catch { showToast("Add the app to your Home Screen, then try again."); }
+    }
+
+    async function requestLaunchPermissions() {
+      const button = $("#enableStudentPermissions");
+      button.disabled = true;
+      button.textContent = "Checking permissions…";
+      $("#launchLocationStatus").textContent = "Requesting location access…";
+      $("#launchNotificationStatus").textContent = "Requesting notification access…";
+
+      const locationRequest = getLocation();
+      const notificationRequest = "Notification" in window
+        ? Notification.requestPermission()
+        : Promise.reject(new Error("Notifications require the Home Screen app."));
+      const [locationResult, notificationResult] = await Promise.allSettled([locationRequest, notificationRequest]);
+
+      $("#launchLocationStatus").textContent = locationResult.status === "fulfilled" ? "Ready" : "Not enabled — allow location in iPhone settings";
+      $("#launchNotificationStatus").textContent = notificationResult.status === "fulfilled" && notificationResult.value === "granted" ? "Ready" : "Not enabled — add to Home Screen or check iPhone settings";
+      button.disabled = false;
+      button.textContent = "Enable and continue";
+
+      if (locationResult.status === "fulfilled") {
+        showToast("Field Check is ready.");
+        setTimeout(() => { if (els.ready.open) els.ready.close(); }, 500);
+      }
+    }
+
+    function renderTeacherEvents(events) {
+      const sorted = [...events].sort((a, b) => new Date(b.at) - new Date(a.at));
+      const latestByStudent = new Map();
+      sorted.forEach((event) => { if (!latestByStudent.has(event.student)) latestByStudent.set(event.student, event); });
+      const students = [...new Set(sorted.map((event) => event.student).filter(Boolean))];
+      const outside = [...latestByStudent.values()].filter((event) => event.step !== "in" && event.status !== "Safely in").length;
+      $("#studentCount").textContent = students.length;
+      $("#outsideCount").textContent = outside;
+      $("#eventCount").textContent = sorted.length;
+      els.teacherRows.replaceChildren();
+      $("#emptyLog").hidden = sorted.length > 0;
+      sorted.forEach((event) => {
+        const row = document.createElement("tr");
+        const cells = [event.student || "—", event.status || labelFor(event.step), new Date(event.at).toLocaleString(), event.destination || "—"];
+        cells.forEach((value, index) => {
+          const cell = document.createElement("td");
+          if (index === 0) { const strong = document.createElement("strong"); strong.textContent = value; cell.append(strong); }
+          else cell.textContent = value;
+          row.append(cell);
+        });
+        const locationCell = document.createElement("td");
+        if (event.latitude != null && event.longitude != null) {
+          const link = document.createElement("a");
+          link.className = "map-link";
+          link.href = event.mapsUrl || `https://maps.google.com/?q=${event.latitude},${event.longitude}`;
+          link.target = "_blank";
+          link.rel = "noopener";
+          link.textContent = `View map (±${event.accuracy || "?"} m)`;
+          locationCell.append(link);
+        } else locationCell.textContent = "Not captured";
+        row.append(locationCell);
+        els.teacherRows.append(row);
+      });
+    }
+
+    function teacherSignature(events) {
+      const newest = [...events].sort((a, b) => new Date(b.at) - new Date(a.at))[0];
+      return newest ? `${events.length}|${newest.student}|${newest.status}|${newest.at}` : "empty";
+    }
+
+    function announceTeacherUpdate(events) {
+      const newest = [...events].sort((a, b) => new Date(b.at) - new Date(a.at))[0];
+      if (!newest) return;
+      showToast(`New update: ${newest.student} — ${newest.status}`);
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(`FNH: ${newest.student}`, { body: `${newest.status} at ${new Date(newest.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`, icon: "./icon.svg", tag: `teacher-${newest.at}` });
+      }
+      if (navigator.vibrate) navigator.vibrate([120, 70, 120]);
+    }
+
+    async function loadTeacherEvents({ announce = true } = {}) {
+      if (teacherLoading) return;
+      teacherLoading = true;
+      if (!state.webhookUrl) {
+        renderTeacherEvents(state.events);
+        $("#teacherSource").textContent = "Showing activity saved on this device. Connect a Google Sheet in setup to combine activity from student phones.";
+        teacherLoading = false;
+        return state.events;
+      }
+      if (!teacherEventSignature) $("#teacherSource").textContent = "Connecting to the shared activity log…";
+      try {
+        const response = await fetch(`${state.webhookUrl}?view=teacher&key=${encodeURIComponent(state.teacherKey)}&t=${Date.now()}`);
+        if (!response.ok) throw new Error("Unable to load");
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        const events = Array.isArray(data.events) ? data.events : [];
+        const signature = teacherSignature(events);
+        if (signature !== teacherEventSignature) renderTeacherEvents(events);
+        if (announce && teacherEventSignature && signature !== teacherEventSignature) announceTeacherUpdate(events);
+        teacherEventSignature = signature;
+        $("#teacherSource").classList.add("live-label");
+        $("#teacherSource").textContent = `Live · ${events.length} shared update${events.length === 1 ? "" : "s"} · checking every 5 seconds`;
+        return events;
+      } catch {
+        $("#teacherSource").classList.remove("live-label");
+        $("#teacherSource").textContent = teacherEventSignature ? "Connection interrupted — keeping the last activity visible and trying again." : "The shared Sheet could not be reached. Showing activity saved on this device.";
+        if (!teacherEventSignature) renderTeacherEvents(state.events);
+        return null;
+      } finally {
+        teacherLoading = false;
+      }
+    }
+
+    async function clearTeacherActivity() {
+      if (!state.webhookUrl) { showToast("Connect the shared Google Sheet first."); return; }
+      if (!confirm("Delete all teacher activity for today? This cannot be undone. The Sheet headers and app setup will be kept.")) return;
+      const button = $("#clearTeacherActivity");
+      button.disabled = true;
+      button.textContent = "Clearing…";
+      try {
+        await fetch(state.webhookUrl, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "reset", teacherKey: state.teacherKey })
+        });
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        teacherEventSignature = "";
+        const events = await loadTeacherEvents({ announce: false });
+        showToast(Array.isArray(events) && events.length === 0 ? "Teacher activity cleared. Ready for a new day." : "Reset was sent. If activity remains, redeploy the updated Apps Script.");
+      } catch {
+        showToast("The activity could not be cleared. Check the Sheet connection.");
+      } finally {
+        button.disabled = false;
+        button.textContent = "End-of-day reset";
+      }
+    }
+
+    function startTeacherPolling() {
+      clearInterval(teacherPollTimer);
+      teacherEventSignature = "";
+      loadTeacherEvents({ announce: false });
+      teacherPollTimer = setInterval(() => {
+        if (els.teacher.open && document.visibilityState === "visible") loadTeacherEvents();
+      }, 5000);
+    }
+
+    function stopTeacherPolling() {
+      clearInterval(teacherPollTimer);
+      teacherPollTimer = null;
+    }
+
+    function buildScriptCode() { return `const TEACHER_KEY = ${JSON.stringify(state.teacherKey)};
+
+function doPost(e) {
+  const data = JSON.parse(e.postData.contents);
+  const sheet = SpreadsheetApp.getActive().getSheetByName('Field Log');
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['Timestamp', 'Student', 'Destination', 'Status', 'Latitude', 'Longitude', 'Accuracy', 'Map', 'Time zone']);
+  }
+  if (data.action === 'reset') {
+    if (data.teacherKey !== TEACHER_KEY) {
+      return ContentService.createTextOutput(JSON.stringify({ error: 'Unauthorized' })).setMimeType(ContentService.MimeType.JSON);
+    }
+    if (sheet.getLastRow() > 1) {
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).clearContent();
+    }
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, reset: true })).setMimeType(ContentService.MimeType.JSON);
+  }
+  sheet.appendRow([new Date(data.at), data.student, data.destination, data.status,
+    data.latitude || '', data.longitude || '', data.accuracy || '', data.mapsUrl || '', data.deviceTimeZone || '']);
+  return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doGet(e) {
+  if (!e || !e.parameter || e.parameter.key !== TEACHER_KEY) {
+    return ContentService.createTextOutput(JSON.stringify({ error: 'Unauthorized' })).setMimeType(ContentService.MimeType.JSON);
+  }
+  const sheet = SpreadsheetApp.getActive().getSheetByName('Field Log');
+  const rows = sheet.getDataRange().getValues();
+  const events = rows.slice(1).map(function(row) {
+    return { at: new Date(row[0]).toISOString(), student: row[1], destination: row[2], status: row[3],
+      latitude: row[4], longitude: row[5], accuracy: row[6], mapsUrl: row[7], deviceTimeZone: row[8] };
+  }).filter(function(event) { return event.student; }).slice(-500);
+  return ContentService.createTextOutput(JSON.stringify({ events: events })).setMimeType(ContentService.MimeType.JSON);
+}`; }
+
+    $$(".action").forEach((button) => button.addEventListener("click", () => completeStep(button.dataset.step, button)));
+    $$("[data-close]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
+    $("#settingsButton").addEventListener("click", () => els.settings.showModal());
+    $("#installHelp").addEventListener("click", () => els.install.showModal());
+    $("#notificationsButton").addEventListener("click", requestNotifications);
+    $("#enableStudentPermissions").addEventListener("click", requestLaunchPermissions);
+    $("#continueWithoutPermissions").addEventListener("click", () => els.ready.close());
+    $("#appsScript").textContent = buildScriptCode();
+    $("#copyCode").addEventListener("click", async () => {
+      const key = els.teacherKey.value.trim();
+      if (!key) { showToast("Enter a private teacher sync key first."); return; }
+      state.teacherKey = key;
+      saveState();
+      const code = buildScriptCode();
+      $("#appsScript").textContent = code;
+      await navigator.clipboard.writeText(code);
+      showToast("Apps Script code copied with the private teacher key.");
+    });
+    $("#copyTeacherKey").addEventListener("click", async () => {
+      const key = els.teacherKey.value.trim();
+      if (!key) { showToast("Enter a private teacher sync key first."); return; }
+      await navigator.clipboard.writeText(key);
+      showToast("Private teacher key copied. Share it only with teachers.");
+    });
+    $("#copyStudentLink").addEventListener("click", async () => {
+      const sheet = els.webhook.value.trim() || state.webhookUrl;
+      if (!sheet) { showToast("Save the Google Apps Script URL first."); return; }
+      const setupUrl = new URL(location.origin + location.pathname);
+      setupUrl.hash = new URLSearchParams({ sheet }).toString();
+      await navigator.clipboard.writeText(setupUrl.toString());
+      showToast("Student setup link copied. Send this link to the class.");
+    });
+    $("#saveSettings").addEventListener("click", async () => {
+      const url = els.webhook.value.trim();
+      const key = els.teacherKey.value.trim();
+      if (url && !/^https:\/\/script\.google\.com\//.test(url)) { showToast("Paste a valid Google Apps Script web app URL."); return; }
+      if (!key) { showToast("Paste the private teacher sync key."); return; }
+      state.webhookUrl = url;
+      state.teacherKey = key;
+      saveState();
+      $("#appsScript").textContent = buildScriptCode();
+      showToast(url ? "Google Sheet URL and private key saved." : "Private teacher key saved.");
+      await flushQueue();
+    });
+    $("#testConnection").addEventListener("click", async () => {
+      state.webhookUrl = els.webhook.value.trim();
+      state.teacherKey = els.teacherKey.value.trim();
+      if (!state.webhookUrl) { showToast("Paste the web app URL first."); return; }
+      if (!state.teacherKey) { showToast("Paste the private teacher sync key first."); return; }
+      state.queue.push({ id: String(Date.now()), step: "test", status: "Connection test", student: "Teacher setup", destination: "FNH Field Check", at: new Date().toISOString(), deviceTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+      saveState();
+      await flushQueue();
+    });
+    $("#teacherButton").addEventListener("click", () => { $("#teacherPassword").value = ""; els.teacherLogin.showModal(); setTimeout(() => $("#teacherPassword").focus(), 50); });
+    $("#teacherLogin").addEventListener("click", () => {
+      if ($("#teacherPassword").value !== "teacher") { showToast("Incorrect teacher password."); return; }
+      els.teacherLogin.close();
+      els.teacher.showModal();
+      startTeacherPolling();
+    });
+    $("#teacherPassword").addEventListener("keydown", (event) => { if (event.key === "Enter") $("#teacherLogin").click(); });
+    $("#refreshTeacher").addEventListener("click", () => loadTeacherEvents({ announce: false }));
+    $("#clearTeacherActivity").addEventListener("click", clearTeacherActivity);
+    $("#enableTeacherAlerts").addEventListener("click", async () => {
+      if (!("Notification" in window)) { showToast("Notifications are not available in this browser."); return; }
+      try {
+        const permission = await Notification.requestPermission();
+        showToast(permission === "granted" ? "Teacher alerts are enabled while this live view is open." : "Teacher alerts were not enabled.");
+      } catch { showToast("Add the app to your Home Screen, then try again."); }
+    });
+    els.teacher.addEventListener("close", stopTeacherPolling);
+    $("#resetButton").addEventListener("click", () => {
+      if (!confirm("Clear the active trip and all settings from this device?")) return;
+      localStorage.removeItem(STORAGE_KEY);
+      state = { ...emptyState };
+      els.settings.close();
+      render();
+      showToast("This device has been reset.");
+    });
+    els.name.addEventListener("change", () => { if (state.status === "idle") { state.student = els.name.value.trim(); saveState(); } });
+    els.destination.addEventListener("change", () => { if (state.status === "idle") { state.destination = els.destination.value.trim(); saveState(); } });
+    window.addEventListener("online", flushQueue);
+    setInterval(updateTimer, 1000);
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
+    installSharedConfigFromLink();
+    render();
+    flushQueue();
+    setTimeout(() => { if (!els.ready.open) els.ready.showModal(); }, 250);
+  </script>
+</body>
+</html>
