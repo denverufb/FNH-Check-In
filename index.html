@@ -382,7 +382,7 @@
     const DEFAULT_WEBHOOK_URL = "https://script.google.com/a/macros/fomusic.org/s/AKfycbxkOeHYJAE8eHSrbY339feEpAMXo2641Z-s269oG_jQYowBRhbubyErgbbkPzXIKGCMDw/exec";
     const STUDENT_RESET_VERSION = "2026-09-24-all-students-1";
     const SYSTEM_RESET_PREFIX = "A new field day has started. Your check-in was reset. #";
-    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: DEFAULT_WEBHOOK_URL, teacherKey: "", teacherResetAt: 0, teacherResetCount: 0, lastTeacherTotal: 0, studentResetVersion: "", lastStudentResetId: "", lastSeenMessageId: "", checkMinutes: DEFAULT_CHECK_MINUTES };
+    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: DEFAULT_WEBHOOK_URL, teacherKey: "", teacherResetAt: 0, teacherResetCount: 0, lastTeacherTotal: 0, studentResetVersion: "", lastStudentResetId: "", lastSeenMessageId: "", permissionsReady: false, checkMinutes: DEFAULT_CHECK_MINUTES };
     let state = loadState();
     prepareSharedConnectionAndStudentReset();
     ensureTeacherKey();
@@ -772,9 +772,34 @@
       button.textContent = "Enable and continue";
 
       if (locationResult.status === "fulfilled") {
+        if (notificationResult.status === "fulfilled" && notificationResult.value === "granted") {
+          state.permissionsReady = true;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
         showToast("Field Check is ready.");
         setTimeout(() => { if (els.ready.open) els.ready.close(); }, 500);
       }
+    }
+
+    async function launchPermissionsAreReady() {
+      if (!("Notification" in window) || Notification.permission !== "granted") return false;
+      if (state.permissionsReady) return true;
+      try {
+        if (navigator.permissions?.query) {
+          const locationPermission = await navigator.permissions.query({ name: "geolocation" });
+          if (locationPermission.state === "granted") {
+            state.permissionsReady = true;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            return true;
+          }
+        }
+      } catch { /* Older iPhones do not expose location permission status. */ }
+      return false;
+    }
+
+    async function showPermissionSetupIfNeeded() {
+      if (await launchPermissionsAreReady()) return;
+      if (!els.ready.open) els.ready.showModal();
     }
 
     function renderTeacherEvents(events) {
@@ -1073,7 +1098,7 @@ function doGet(e) {
     render();
     flushQueue();
     startStudentPolling();
-    setTimeout(() => { if (!els.ready.open) els.ready.showModal(); }, 250);
+    setTimeout(showPermissionSetupIfNeeded, 250);
   </script>
 </body>
 </html>
