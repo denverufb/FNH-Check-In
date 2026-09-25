@@ -381,7 +381,8 @@
     const DEFAULT_CHECK_MINUTES = 30;
     const DEFAULT_WEBHOOK_URL = "https://script.google.com/a/macros/fomusic.org/s/AKfycbxkOeHYJAE8eHSrbY339feEpAMXo2641Z-s269oG_jQYowBRhbubyErgbbkPzXIKGCMDw/exec";
     const STUDENT_RESET_VERSION = "2026-09-24-all-students-1";
-    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: DEFAULT_WEBHOOK_URL, teacherKey: "", teacherResetAt: 0, teacherResetCount: 0, lastTeacherTotal: 0, studentResetVersion: "", lastSeenMessageId: "", checkMinutes: DEFAULT_CHECK_MINUTES };
+    const SYSTEM_RESET_PREFIX = "A new field day has started. Your check-in was reset. #";
+    const emptyState = { status: "idle", student: "", destination: "", startedAt: null, dueAt: null, events: [], queue: [], webhookUrl: DEFAULT_WEBHOOK_URL, teacherKey: "", teacherResetAt: 0, teacherResetCount: 0, lastTeacherTotal: 0, studentResetVersion: "", lastStudentResetId: "", lastSeenMessageId: "", checkMinutes: DEFAULT_CHECK_MINUTES };
     let state = loadState();
     prepareSharedConnectionAndStudentReset();
     ensureTeacherKey();
@@ -514,6 +515,23 @@
       });
     }
 
+    function applyTeacherReset(resetMessage, visibleMessages) {
+      if (!resetMessage || resetMessage.id === state.lastStudentResetId) return false;
+      const resetTime = new Date(resetMessage.at).getTime();
+      const lastEarlierMessage = [...visibleMessages].reverse().find((item) => new Date(item.at).getTime() <= resetTime);
+      Object.assign(state, {
+        status: "idle", destination: "", startedAt: null, dueAt: null, events: [], queue: [],
+        reminderSent: false, tripId: null, lastStudentResetId: resetMessage.id,
+        lastSeenMessageId: lastEarlierMessage ? lastEarlierMessage.id : state.lastSeenMessageId
+      });
+      displayedMessageId = "";
+      if (els.teacherMessage.open) els.teacherMessage.close();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      render();
+      showToast("A new field day has started. You’re ready to tap “I’m going out.”");
+      return true;
+    }
+
     async function loadStudentUpdates() {
       if (studentUpdateLoading) return;
       studentUpdateLoading = true;
@@ -535,7 +553,10 @@
         }
         const student = els.name.value || state.student;
         const messages = (Array.isArray(data.messages) ? data.messages : []).filter((item) => item.recipient === "Everyone" || (student && item.recipient === student));
-        const newest = messages[messages.length - 1];
+        const resetMessages = messages.filter((item) => String(item.message || "").startsWith(SYSTEM_RESET_PREFIX));
+        const visibleMessages = messages.filter((item) => !String(item.message || "").startsWith(SYSTEM_RESET_PREFIX));
+        applyTeacherReset(resetMessages[resetMessages.length - 1], visibleMessages);
+        const newest = visibleMessages[visibleMessages.length - 1];
         if (!newest || newest.id === state.lastSeenMessageId) { if (els.teacherMessage.open) els.teacherMessage.close(); return; }
         els.teacherMessageText.textContent = newest.message;
         els.teacherMessage.dataset.messageId = newest.id;

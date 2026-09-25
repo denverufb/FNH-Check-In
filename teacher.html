@@ -53,7 +53,7 @@
       <section class="card">
         <h2>Dashboard controls</h2>
         <div class="form"><button class="btn" id="refresh">Refresh now</button><button class="btn danger" id="resetDashboard">End-of-day reset</button><button class="btn" id="copyBackend">Copy updated Apps Script</button></div>
-        <p class="helper">Reset hides today’s existing cards on this teacher device. New updates appear normally.</p>
+        <p class="helper">Reset clears today’s activity for every teacher and returns every student app to “I’m going out,” either immediately or the next time it opens.</p>
       </section>
     </div>
   </main>
@@ -62,6 +62,7 @@
   <script>
     const STORAGE_KEY="fnh-field-check-v1";
     const WEBHOOK="https://script.google.com/a/macros/fomusic.org/s/AKfycbxkOeHYJAE8eHSrbY339feEpAMXo2641Z-s269oG_jQYowBRhbubyErgbbkPzXIKGCMDw/exec";
+    const SYSTEM_RESET_PREFIX="A new field day has started. Your check-in was reset. #";
     const SCHOOL_CENTER=[38.6298665,-90.4726362];
     let state={};try{state=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")}catch{}
     let events=[],students=[],messages=[],checkMinutes=30,timerBackendReady=false,timer=null,map=null,markers=null,lastMapSignature="",toastTimer=null,teacherAudioContext=null,knownEventKeys=null,teacherPassword="";
@@ -108,13 +109,25 @@
     function renderMap(latest){const locations=[];latest.forEach((e,name)=>{const lat=Number(e.latitude),lng=Number(e.longitude);if(Number.isFinite(lat)&&Number.isFinite(lng))locations.push({name,lat,lng,status:e.status||""})});const signature=JSON.stringify(locations);if(signature===lastMapSignature)return;lastMapSignature=signature;markers.clearLayers();locations.forEach(location=>L.marker([location.lat,location.lng]).bindPopup(`<strong>${escapeHtml(location.name)}</strong><br>${escapeHtml(location.status)}`).addTo(markers))}
     function escapeHtml(v){const d=document.createElement("div");d.textContent=String(v);return d.innerHTML}
     function renderRoster(){const host=$("#roster"),recipient=$("#messageRecipient"),selected=recipient.value;host.replaceChildren();recipient.replaceChildren(new Option("Everyone","Everyone"));students.forEach(name=>{recipient.append(new Option(name,name));const row=document.createElement("div"),span=document.createElement("span"),button=document.createElement("button");row.className="roster-row";span.textContent=name;button.className="btn danger";button.textContent="Remove";button.onclick=()=>mutate({action:"removeStudent",student:name},`${name} removed.`);row.append(span,button);host.append(row)});if([...recipient.options].some(o=>o.value===selected))recipient.value=selected}
-    async function mutate(payload,success){payload.teacherKey=key();await fetch(WEBHOOK,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)});toast(success);setTimeout(load,900)}
+    async function mutate(payload,success,reload=true){payload.teacherKey=key();await fetch(WEBHOOK,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)});if(success)toast(success);if(reload)setTimeout(load,900)}
     $("#addStudent").onclick=()=>{const name=$("#newStudent").value.trim();if(!name)return toast("Enter a student name.");mutate({action:"addStudent",student:name},`${name} added.`);$("#newStudent").value=""};
     $("#sendMessage").onclick=()=>{const message=$("#messageText").value.trim();if(!message)return toast("Type a message first.");mutate({action:"message",recipient:$("#messageRecipient").value,message},"Message sent to students.");$("#messageText").value=""};
     $("#saveTimer").onclick=()=>{if(!timerBackendReady)return toast("Update the Apps Script first, then set the timer.");const minutes=Math.round(Number($("#checkMinutes").value));if(!Number.isFinite(minutes)||minutes<1||minutes>180)return toast("Choose a timer from 1 to 180 minutes.");checkMinutes=minutes;render();mutate({action:"setTimer",checkMinutes:minutes},`Safety timer set to ${minutes} minute${minutes===1?"":"s"}.`)};
     $("#refresh").onclick=()=>load().then(()=>toast("Dashboard refreshed."));
     $("#centerMap").onclick=()=>{initMap();map.setView(SCHOOL_CENTER,16,{animate:true})};
-    $("#resetDashboard").onclick=()=>{if(!confirm("Hide all current activity and start a new dashboard day?"))return;state.teacherResetCount=Number(state.lastTeacherTotal||0);save();events=[];render();toast("Dashboard reset. New updates will appear.")};
+    $("#resetDashboard").onclick=async()=>{
+      if(!confirm("End the current field day? This clears the teacher activity and returns every student app to the first button."))return;
+      const button=$("#resetDashboard");button.disabled=true;button.textContent="Resetting…";
+      try{
+        await mutate({action:"message",recipient:"Everyone",message:`${SYSTEM_RESET_PREFIX}${Date.now()}`},"",false);
+        await mutate({action:"reset"},"",false);
+        state.teacherResetCount=0;state.lastTeacherTotal=0;save();events=[];knownEventKeys=new Set();lastMapSignature="";render();
+        $("#liveStatus").textContent="New field day started · waiting for student updates";
+        toast("End-of-day reset sent to every student app.");
+        setTimeout(load,1000);
+      }catch{toast("The reset could not reach the shared class log. Please try again.")}
+      finally{button.disabled=false;button.textContent="End-of-day reset"}
+    };
     $("#copyBackend").onclick=()=>copyBackendCode(key());
     document.addEventListener("pointerdown",unlockTeacherAudio,{passive:true});
     document.addEventListener("keydown",unlockTeacherAudio);
