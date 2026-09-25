@@ -515,6 +515,13 @@
       });
     }
 
+    async function fetchWithTimeout(url, options = {}, timeout = 10000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
+      try { return await fetch(url, { ...options, signal: controller.signal }); }
+      finally { clearTimeout(timer); }
+    }
+
     function applyTeacherReset(resetMessage, visibleMessages) {
       if (!resetMessage || resetMessage.id === state.lastStudentResetId) return false;
       const resetTime = new Date(resetMessage.at).getTime();
@@ -537,7 +544,7 @@
       studentUpdateLoading = true;
       try {
         const currentStudent = els.name.value || state.student || "";
-        const response = await fetch(`${state.webhookUrl}?view=student&student=${encodeURIComponent(currentStudent)}&t=${Date.now()}`, { cache: "no-store" });
+        const response = await fetchWithTimeout(`${state.webhookUrl}?view=student&student=${encodeURIComponent(currentStudent)}&t=${Date.now()}`, { cache: "no-store" });
         const data = await response.json();
         if (data.error) throw new Error(data.error);
         updateStudentRoster(data.students);
@@ -575,7 +582,7 @@
       clearTimeout(studentPollTimer);
       const poll = async () => {
         if (document.visibilityState === "visible") await loadStudentUpdates();
-        studentPollTimer = setTimeout(poll, 1500);
+        studentPollTimer = setTimeout(poll, 15000);
       };
       poll();
     }
