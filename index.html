@@ -515,7 +515,7 @@
       });
     }
 
-    async function fetchWithTimeout(url, options = {}, timeout = 10000) {
+    async function fetchWithTimeout(url, options = {}, timeout = 30000) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeout);
       try { return await fetch(url, { ...options, signal: controller.signal }); }
@@ -582,7 +582,7 @@
       clearTimeout(studentPollTimer);
       const poll = async () => {
         if (document.visibilityState === "visible") await loadStudentUpdates();
-        studentPollTimer = setTimeout(poll, 15000);
+        studentPollTimer = setTimeout(poll, 5000);
       };
       poll();
     }
@@ -772,18 +772,20 @@
       button.textContent = "Enable and continue";
 
       if (locationResult.status === "fulfilled") {
-        if (notificationResult.status === "fulfilled" && notificationResult.value === "granted") {
-          state.permissionsReady = true;
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-        }
+        state.permissionsReady = true;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         showToast("Field Check is ready.");
         setTimeout(() => { if (els.ready.open) els.ready.close(); }, 500);
       }
     }
 
     async function launchPermissionsAreReady() {
-      if (!("Notification" in window) || Notification.permission !== "granted") return false;
       if (state.permissionsReady) return true;
+      if ("Notification" in window && Notification.permission === "granted") {
+        state.permissionsReady = true;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        return true;
+      }
       try {
         if (navigator.permissions?.query) {
           const locationPermission = await navigator.permissions.query({ name: "geolocation" });
@@ -1000,7 +1002,11 @@ function doGet(e) {
     $("#installHelp").addEventListener("click", () => els.install.showModal());
     $("#notificationsButton").addEventListener("click", requestNotifications);
     $("#enableStudentPermissions").addEventListener("click", requestLaunchPermissions);
-    $("#continueWithoutPermissions").addEventListener("click", () => els.ready.close());
+    $("#continueWithoutPermissions").addEventListener("click", () => {
+      state.permissionsReady = true;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      els.ready.close();
+    });
     $("#dismissTeacherMessage").addEventListener("click", dismissTeacherMessage);
     $("#acknowledgeTeacherMessage").addEventListener("click", dismissTeacherMessage);
     els.teacherMessage.addEventListener("cancel", (event) => event.preventDefault());
