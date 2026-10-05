@@ -5,13 +5,13 @@ const LOG_SHEET_NAME = 'Field Log';
 const STUDENTS_SHEET_NAME = 'Students';
 const MESSAGES_SHEET_NAME = 'Messages';
 const DEFAULT_CHECK_MINUTES = 30;
-const ROSTER_VERSION = 'fnh-roster-2026-09-24-v2';
+const ROSTER_VERSION = 'fnh-roster-2026-10-05-v3';
 const DEFAULT_STUDENTS = [
   'Ruth Allen ’28', 'Maiyah Calleb ’27', 'Michaela Coles ’28', 'Tristin Coon ’27',
   'Davis Johnson ’28', 'Taylor Lee ’27', 'Valentina Lizarazo ’28',
   'Avenly Lockhart ’28', 'Allie Medford ’28', 'Eli Morse ’27',
   'Peyton Webster ’27', 'Khanye Williams ’27', 'Allana Dow ’28',
-  'Arwynne Dow ’28', 'Alana Henry ’28', 'Paige Ivy ’28'
+  'Arwynne Dow ’28', 'Alana Henry ’28', 'Paige Ivy ’28', 'Aereon Armon'
 ];
 
 function getSheet_(name, headers) {
